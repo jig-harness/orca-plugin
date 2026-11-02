@@ -1,0 +1,34 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "jig",
+  "name": "Jig",
+  "version": "0.1.0",
+  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, and shows what the tick did.",
+  "repository": "https://github.com/jig-harness/orca-plugin",
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.246" },
+  "pluginApi": 1,
+  "main": "main.mjs",
+  "contributes": {
+    "events": [{ "on": "agent.status.changed" }, { "on": "workspace.created" }],
+    "settings": [
+      {
+        "key": "jigCommand",
+        "title": "Jig command",
+        "description": "The command that runs Jig, without arguments; the plugin adds `dispatch --apply --repo <repository> --json`. Quotes keep spaces; nothing else is expanded. Empty: the jig plugin installed for Claude Code or Codex, found as Jig's own timer finds it.",
+        "type": "string",
+        "default": "",
+        "placeholder": "bun --no-env-file --config=<plugin>/dispatch/bunfig.toml <plugin>/jig.ts"
+      }
+    ]
+  },
+  "capabilities": [
+    { "kind": "workspace:read" },
+    { "kind": "agent:read" },
+    { "kind": "notifications:show" },
+    { "kind": "storage:own" },
+    { "kind": "settings:own" }
+  ]
+}

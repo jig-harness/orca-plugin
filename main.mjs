@@ -1,0 +1,600 @@
+// The jig plugin's worker. Orca starts it with the user's permissions and hands it agent and
+// workspace events. When an agent stops for input or finishes in a repository that uses Jig, it
+// runs one tick of Jig's dispatcher for that repository and shows what the tick did. Jig's rules
+// stay in Jig: this file only decides when to wake the dispatcher and which repository to name.
+import { spawn } from 'node:child_process'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { delimiter, join } from 'node:path'
+
+/** Agent states that mean a session may want the dispatcher: it needs a person, or it ended. */
+export const WAKE_STATES = new Set(['waiting', 'blocked', 'done'])
+
+/** At most one tick per repository in this window. */
+export const TICK_WINDOW_MS = 60_000
+
+/** How long a tick may run before it is stopped; the dispatcher's own timer allows as much. */
+export const TICK_DEADLINE_MS = 6 * 3600_000
+
+/** Orca stops a worker that has been idle for a few minutes; a host call this often while a tick
+ *  runs keeps it from stopping mid-tick. */
+export const HEARTBEAT_MS = 60_000
+
+/** A tick that finds the dispatcher's lock held is tried again this many times, a window apart. */
+export const LOCK_HELD_RETRIES = 5
+
+const LOCK_HELD_EXIT = 3
+const PLUGIN_ID = 'jig@jig'
+const SETTING_KEY = 'jigCommand'
+const STORAGE_KEY = 'workspaces'
+const REMEMBERED_WORKSPACES = 200
+const LIST_CACHE_MS = 30_000
+const FOLDER_INSTANCE_SUFFIX = /::workspace:[0-9a-f-]{36}$/
+
+/** Why the dispatcher cannot be run at all; shown to the person, never thrown past a handler. */
+export class JigCommandError extends Error {}
+
+/**
+ * The setting's command line as arguments: whitespace separates them, single or double quotes
+ * keep spaces, and nothing is expanded, so no shell ever reads it.
+ */
+export function splitCommand(text) {
+  const args = []
+  let current = ''
+  let quote = null
+  let started = false
+  for (const ch of String(text ?? '')) {
+    if (quote) {
+      if (ch === quote) quote = null
+      else current += ch
+    } else if (ch === '"' || ch === "'") {
+      quote = ch
+      started = true
+    } else if (/\s/.test(ch)) {
+      if (started) args.push(current)
+      current = ''
+      started = false
+    } else {
+      current += ch
+      started = true
+    }
+  }
+  if (quote) throw new JigCommandError(`the jig command has an unclosed ${quote} quote`)
+  if (started) args.push(current)
+  return args
+}
+
+/** Whether a status change should wake the dispatcher: its own state or its main agent's. */
+export function wakesDispatcher(payload) {
+  return WAKE_STATES.has(payload?.state) || WAKE_STATES.has(payload?.mainAgent?.state)
+}
+
+/** The plugin directory of the user-scope install in `claude plugin list --json`. */
+export function claudePluginDirectory(list) {
+  if (!Array.isArray(list)) return null
+  const entry = list.find((plugin) => plugin?.id === PLUGIN_ID && plugin?.scope === 'user')
+  // A plugin loaded in place from a local marketplace has no cache copy.
+  const directory = entry?.readFromFolder ?? entry?.installPath
+  return typeof directory === 'string' && directory ? directory : null
+}
+
+/** The cache directory of the install in `codex plugin list --json`. */
+export function codexPluginDirectory(list, home) {
+  const installed = list?.installed
+  if (!Array.isArray(installed)) return null
+  const version = installed.find((plugin) => plugin?.pluginId === PLUGIN_ID)?.version
+  return typeof version === 'string' && version
+    ? join(home, '.codex', 'plugins', 'cache', 'jig', 'jig', version)
+    : null
+}
+
+/** The first `name` on `PATH`, with Windows' executable extensions; null when none is there. */
+export function findOnPath(name, env, platform, exists) {
+  const extensions =
+    platform === 'win32' ? ['', ...(env.PATHEXT ?? '.EXE;.CMD;.BAT').split(';')] : ['']
+  for (const directory of (env.PATH ?? '').split(platform === 'win32' ? ';' : delimiter)) {
+    if (!directory) continue
+    for (const extension of extensions) {
+      const candidate = join(directory, name + extension)
+      if (exists(candidate)) return candidate
+    }
+  }
+  return null
+}
+
+/**
+ * The repository a workspace belongs to, from `git worktree list --porcelain`: Git lists the
+ * main checkout first, and the dispatcher's machine file names a repository by that path. A bare
+ * repository has no main checkout, so its worktree's own top level stands in.
+ */
+export function mainCheckout(porcelain) {
+  const first = porcelain.split('\n\n')[0] ?? ''
+  const lines = first.split('\n')
+  const path = lines.find((line) => line.startsWith('worktree '))?.slice('worktree '.length)
+  if (!path) return null
+  return { path, bare: lines.includes('bare') }
+}
+
+/** The tick's receipt as one line, from what `jig dispatch --json` prints. */
+export function receiptLine(receipt, repo) {
+  const report = receipt?.repos?.find((r) => r.path === repo) ?? receipt?.repos?.[0]
+  const name = report?.slug ?? repo
+  if (!report) return `${name}: the tick read no repository (tick ${receipt?.runId ?? '?'})`
+  if (report.refused) return `${name}: refused: ${report.refused}`
+  const tick = `tick ${receipt.runId}`
+  if (receipt.applyWithheld) return `${name}: nothing started, ${receipt.applyWithheld} (${tick})`
+  const started = (report.launches ?? []).filter((l) =>
+    ['launched', 'retried'].includes(l.outcome)
+  ).length
+  const notified = (report.notifications ?? []).filter((n) => n.outcome === 'sent').length
+  const steered = (report.steers ?? []).length
+  const parts = [
+    `${(report.actions ?? []).length} wanted`,
+    `${started} started`,
+    `${notified} notified`,
+    ...(steered ? [`${steered} nudged`] : []),
+    `${(report.running ?? []).length} running`
+  ]
+  const exit = receipt.exitStatus ? `, exit ${receipt.exitStatus}` : ''
+  return `${name}: ${parts.join(', ')}${exit} (${tick})`
+}
+
+/** The receipt's detail as log lines: each action, launch, notification and nudge. */
+export function receiptDetail(receipt) {
+  const lines = []
+  for (const r of receipt?.repos ?? []) {
+    for (const a of r.actions ?? []) lines.push(`  wants ${a.stage} ${a.target}: ${a.reason}`)
+    for (const l of r.launches ?? [])
+      lines.push(`  ${l.outcome} ${l.action} ${l.target}: ${l.detail}`)
+    for (const n of r.notifications ?? [])
+      lines.push(`  ${n.outcome} notify ${n.target} (${n.cause}): ${n.detail}`)
+    for (const s of r.steers ?? []) lines.push(`  ${s.outcome} steer ${s.target}: ${s.detail}`)
+    for (const u of r.unplaced ?? []) lines.push(`  unplaced ${u.target}: ${u.reason}`)
+  }
+  for (const a of receipt?.accountsNotAdmitted ?? [])
+    lines.push(`  account ${a.account} not admitted: ${a.reason}`)
+  return lines
+}
+
+function firstLine(text) {
+  return (
+    String(text ?? '')
+      .split('\n')
+      .map((line) => line.trim())
+      .find(Boolean) ?? ''
+  )
+}
+
+/** Runs a program to its end without a shell; never rejects. */
+export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, platform }) {
+  return new Promise((settle) => {
+    let child
+    try {
+      child = spawn(argv[0], argv.slice(1), {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env,
+        // Its own process group, so a deadline stops everything the tick started.
+        detached: platform !== 'win32',
+        windowsHide: true
+      })
+    } catch (error) {
+      settle({ code: null, stdout: '', stderr: '', error })
+      return
+    }
+    const out = { stdout: [], stderr: [] }
+    let size = 0
+    let done = false
+    let stopped = null
+    const stop = (why) => {
+      if (stopped) return
+      stopped = why
+      try {
+        if (platform === 'win32') child.kill()
+        else process.kill(-child.pid, 'SIGTERM')
+      } catch {
+        child.kill()
+      }
+    }
+    const deadline = setTimeout(() => stop(`ran past ${Math.round(timeoutMs / 1000)}s`), timeoutMs)
+    for (const stream of ['stdout', 'stderr']) {
+      child[stream].on('data', (chunk) => {
+        size += chunk.length
+        if (size > maxBytes) stop(`printed more than ${maxBytes} bytes`)
+        else out[stream].push(chunk)
+      })
+    }
+    const finish = (code, error) => {
+      if (done) return
+      done = true
+      clearTimeout(deadline)
+      settle({
+        code,
+        stdout: Buffer.concat(out.stdout).toString('utf8'),
+        stderr: Buffer.concat(out.stderr).toString('utf8'),
+        ...(error ? { error } : {}),
+        ...(stopped ? { error: new Error(stopped) } : {})
+      })
+    }
+    child.on('error', (error) => finish(null, error))
+    child.on('close', (code) => finish(code))
+  })
+}
+
+const realClock = {
+  now: () => Date.now(),
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (timer) => clearTimeout(timer)
+}
+
+/**
+ * The worker's logic, with everything it touches passed in: `host` is `orca.host`, `log` is
+ * `orca.log`, `run(argv, options)` runs a program and resolves `{ code, stdout, stderr, error? }`.
+ */
+export function createDispatcher({
+  host,
+  log,
+  run = runProgram,
+  exists = existsSync,
+  clock = realClock,
+  env = process.env,
+  platform = process.platform,
+  home = homedir()
+}) {
+  const repos = new Map()
+  const known = new Map()
+  let loaded = null
+  let listed = { at: -Infinity, workspaces: [] }
+  let heartbeat = null
+  let running = 0
+  const inFlight = new Set()
+
+  const track = (promise) => {
+    inFlight.add(promise)
+    promise.finally(() => inFlight.delete(promise))
+    return promise
+  }
+
+  async function call(method, params) {
+    return host.call(method, params)
+  }
+
+  async function remembered() {
+    loaded ??= call('storage.get', { key: STORAGE_KEY })
+      .then((result) => {
+        const value = result?.value
+        if (value && typeof value === 'object')
+          for (const [id, path] of Object.entries(value))
+            if (typeof path === 'string' && !known.has(id)) known.set(id, path)
+      })
+      .catch((error) => log(`could not read remembered workspaces: ${error.message}`))
+    await loaded
+  }
+
+  async function remember(id, path) {
+    await remembered()
+    known.delete(id)
+    known.set(id, path)
+    while (known.size > REMEMBERED_WORKSPACES) known.delete(known.keys().next().value)
+    try {
+      await call('storage.set', { key: STORAGE_KEY, value: Object.fromEntries(known) })
+    } catch (error) {
+      log(`could not remember workspace ${id}: ${error.message}`)
+    }
+  }
+
+  /**
+   * A workspace's local path. Orca 1.4.246 offers no way to look a workspace up, so the plugin
+   * remembers the paths `workspace.created` reports; an Orca with `workspace.list` answers for
+   * every workspace. Agent events name a workspace by Orca's worktree id, which `workspace.list`
+   * replaces with a host identity when it has one; the listed path is what both spell alike.
+   */
+  async function workspacePath(workspaceId) {
+    await remembered()
+    if (known.has(workspaceId)) return known.get(workspaceId)
+    if (!host.has?.('workspace.list')) return null
+    if (clock.now() - listed.at > LIST_CACHE_MS) {
+      const result = await call('workspace.list', {})
+      listed = { at: clock.now(), workspaces: result?.workspaces ?? [] }
+    }
+    const locator = workspaceId.replace(FOLDER_INSTANCE_SUFFIX, '')
+    const row =
+      listed.workspaces.find((w) => w.id === workspaceId) ??
+      listed.workspaces.find((w) => w.path && locator.endsWith(`::${w.path}`))
+    if (!row) return null
+    if (row.hostId && row.hostId !== 'local') {
+      log(`workspace ${workspaceId} is on ${row.hostId}; ticks run only for this machine's`)
+      return null
+    }
+    return row.path
+  }
+
+  /** The repository a workspace path belongs to, when it uses Jig; null otherwise. */
+  async function jigRepository(path) {
+    const listing = await run(['git', '-C', path, 'worktree', 'list', '--porcelain'], {
+      timeoutMs: 30_000,
+      env,
+      platform
+    })
+    if (listing.code !== 0) {
+      log(`${path} is not a Git checkout: ${firstLine(listing.stderr) || listing.error?.message}`)
+      return null
+    }
+    let repo = mainCheckout(listing.stdout)
+    let top = null
+    if (!repo || repo.bare) {
+      const shown = await run(['git', '-C', path, 'rev-parse', '--show-toplevel'], {
+        timeoutMs: 30_000,
+        env,
+        platform
+      })
+      top = shown.code === 0 ? firstLine(shown.stdout) : null
+      if (!top) return null
+      repo = { path: top }
+    }
+    // The main checkout may lag a branch that adds Jig, so the workspace's own counts too.
+    const configured = [repo.path, top ?? path].some((root) =>
+      exists(join(root, '.config', 'jig.yaml'))
+    )
+    return configured ? repo.path : null
+  }
+
+  async function jigCommand() {
+    let configured = ''
+    try {
+      const result = await call('settings.get', {})
+      const value = result?.settings?.[SETTING_KEY]
+      configured = typeof value === 'string' ? value.trim() : ''
+    } catch (error) {
+      log(`could not read the ${SETTING_KEY} setting, using the installed plugin: ${error.message}`)
+    }
+    if (configured) {
+      const args = splitCommand(configured)
+      if (args.length > 0) return args
+    }
+    return installedCommand()
+  }
+
+  /** The installed jig plugin's command, found as Jig's own timer finds it. */
+  async function installedCommand() {
+    const failures = []
+    const tools = [
+      ['claude', claudePluginDirectory],
+      ['codex', (list) => codexPluginDirectory(list, home)]
+    ]
+    for (const [name, directoryOf] of tools) {
+      const program = findOnPath(name, env, platform, exists)
+      if (!program) continue
+      const answer = await run([program, 'plugin', 'list', '--json'], {
+        timeoutMs: 30_000,
+        maxBytes: 4 * 1024 * 1024,
+        env,
+        platform
+      })
+      if (answer.code !== 0) {
+        failures.push(`${name}: ${firstLine(answer.stderr) || answer.error?.message || 'failed'}`)
+        continue
+      }
+      let directory = null
+      try {
+        directory = directoryOf(JSON.parse(answer.stdout))
+      } catch {
+        failures.push(`${name}: plugin list did not print JSON`)
+        continue
+      }
+      if (!directory) {
+        failures.push(`${name}: ${PLUGIN_ID} is not installed`)
+        continue
+      }
+      const entry = join(directory, 'jig.ts')
+      if (!exists(entry)) {
+        failures.push(`${name}: ${entry} does not exist`)
+        continue
+      }
+      const bun = findOnPath('bun', env, platform, exists) ?? join(home, '.bun', 'bin', 'bun')
+      if (!exists(bun)) throw new JigCommandError('Bun is not on the PATH Orca gives its plugins')
+      return [bun, '--no-env-file', `--config=${join(directory, 'dispatch', 'bunfig.toml')}`, entry]
+    }
+    throw new JigCommandError(
+      `cannot find the installed jig plugin (${failures.join('; ') || 'neither claude nor codex is on the PATH Orca gives its plugins'}); set the Jig command setting`
+    )
+  }
+
+  async function notify(title, body) {
+    try {
+      await call('notifications.show', { title, body })
+    } catch (error) {
+      log(`could not show a notification: ${error.message}`)
+    }
+  }
+
+  function startHeartbeat() {
+    running += 1
+    if (heartbeat) return
+    const beat = () => {
+      heartbeat = clock.setTimeout(() => {
+        call('storage.keys', {}).catch(() => {})
+        beat()
+      }, HEARTBEAT_MS)
+    }
+    beat()
+  }
+
+  function stopHeartbeat() {
+    running -= 1
+    if (running === 0 && heartbeat) {
+      clock.clearTimeout(heartbeat)
+      heartbeat = null
+    }
+  }
+
+  /** One tick for `repo`; resolves whether to try again because another tick held the lock. */
+  async function tick(repo) {
+    let command
+    try {
+      command = await jigCommand()
+    } catch (error) {
+      const why = error instanceof JigCommandError ? error.message : String(error?.message)
+      log(`jig dispatch not run for ${repo}: ${why}`)
+      await notify('Jig dispatch did not run', why)
+      return false
+    }
+    const argv = [...command, 'dispatch', '--apply', '--repo', repo, '--json']
+    log(`tick for ${repo}: ${argv.join(' ')}`)
+    startHeartbeat()
+    let result
+    try {
+      result = await run(argv, { timeoutMs: TICK_DEADLINE_MS, env, platform })
+    } finally {
+      stopHeartbeat()
+    }
+    if (result.code === LOCK_HELD_EXIT) {
+      log(`tick for ${repo}: another tick holds the lock: ${firstLine(result.stderr)}`)
+      return true
+    }
+    let receipt = null
+    try {
+      receipt = JSON.parse(result.stdout)
+    } catch {
+      receipt = null
+    }
+    if (!receipt || !Array.isArray(receipt.repos)) {
+      const why =
+        result.error?.code === 'ENOENT'
+          ? `${argv[0]} was not found`
+          : firstLine(result.stderr) ||
+            result.error?.message ||
+            firstLine(result.stdout) ||
+            `exit ${result.code}`
+      log(`tick for ${repo} failed (exit ${result.code}): ${why}`)
+      if (result.stderr.trim()) log(result.stderr.trim())
+      await notify('Jig dispatch failed', `${repo}: ${why}`)
+      return false
+    }
+    const line = receiptLine(receipt, repo)
+    log(line)
+    for (const detail of receiptDetail(receipt)) log(detail)
+    log(`full receipt: jig dispatch receipts ${receipt.runId}`)
+    await notify('Jig dispatch', line)
+    return false
+  }
+
+  function state(repo) {
+    let s = repos.get(repo)
+    if (!s) {
+      s = { lastStart: null, running: false, pending: false, timer: null, lockRetries: 0 }
+      repos.set(repo, s)
+    }
+    return s
+  }
+
+  /**
+   * Asks for a tick of `repo`: now when none ran in the last window, else one at the window's
+   * end. Requests while one is scheduled join it; a request while a tick runs schedules exactly
+   * one more, so no request is dropped and no two ticks of one repository overlap.
+   */
+  function requestTick(repo) {
+    const s = state(repo)
+    if (s.running) {
+      s.pending = true
+      return
+    }
+    if (s.timer) return
+    const wait = s.lastStart === null ? 0 : s.lastStart + TICK_WINDOW_MS - clock.now()
+    if (wait <= 0) {
+      startTick(repo)
+      return
+    }
+    s.timer = clock.setTimeout(() => {
+      s.timer = null
+      startTick(repo)
+    }, wait)
+  }
+
+  function startTick(repo) {
+    const s = state(repo)
+    s.running = true
+    s.lastStart = clock.now()
+    track(
+      tick(repo)
+        .catch((error) => {
+          log(`tick for ${repo} failed: ${error?.stack ?? error}`)
+          return false
+        })
+        .then((lockHeld) => {
+          s.running = false
+          if (lockHeld && s.lockRetries < LOCK_HELD_RETRIES) {
+            s.lockRetries += 1
+            s.pending = true
+          } else {
+            if (lockHeld) log(`tick for ${repo}: lock still held after ${LOCK_HELD_RETRIES} tries`)
+            s.lockRetries = 0
+          }
+          if (s.pending) {
+            s.pending = false
+            requestTick(repo)
+          }
+        })
+    )
+  }
+
+  async function handleAgentStatus(payload) {
+    if (!wakesDispatcher(payload)) return
+    const workspaceId = payload?.workspaceId
+    if (!workspaceId) {
+      log(`agent ${payload?.state ?? '?'} in no known workspace (pane ${payload?.paneKey}); ignored`)
+      return
+    }
+    const path = await workspacePath(workspaceId)
+    if (!path) {
+      log(`agent ${payload.state} in workspace ${workspaceId}: its path is unknown; ignored`)
+      return
+    }
+    const repo = await jigRepository(path)
+    if (!repo) return
+    requestTick(repo)
+  }
+
+  async function handleWorkspaceCreated(payload) {
+    log(`workspace created: ${payload?.kind} ${payload?.path} (${payload?.branch ?? 'no branch'})`)
+    if (payload?.workspaceId && payload?.path) await remember(payload.workspaceId, payload.path)
+  }
+
+  const guarded = (name, handler) => (payload) =>
+    track(
+      handler(payload).catch((error) => log(`${name} handler failed: ${error?.stack ?? error}`))
+    )
+
+  return {
+    onAgentStatusChanged: guarded('agent.status.changed', handleAgentStatus),
+    onWorkspaceCreated: guarded('workspace.created', handleWorkspaceCreated),
+    requestTick,
+    /** Resolves once every handler and tick started so far has settled (for tests). */
+    async settled() {
+      while (inFlight.size > 0) await Promise.all([...inFlight])
+    },
+    dispose() {
+      for (const s of repos.values()) if (s.timer) clock.clearTimeout(s.timer)
+      if (heartbeat) clock.clearTimeout(heartbeat)
+      heartbeat = null
+    }
+  }
+}
+
+let active = null
+
+export default function activate(orca) {
+  active = createDispatcher({ host: orca.host, log: (message) => orca.log(message) })
+  // Handlers return at once: Orca waits on them, and a tick can take minutes.
+  orca.events.on('agent.status.changed', (payload) => {
+    active.onAgentStatusChanged(payload)
+  })
+  orca.events.on('workspace.created', (payload) => {
+    active.onWorkspaceCreated(payload)
+  })
+}
+
+export function deactivate() {
+  active?.dispose()
+  active = null
+}
+
