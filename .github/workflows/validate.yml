@@ -1,0 +1,68 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # Orca v1.4.246, the release engines.orca names: its validator is the one that release enforces.
+  # Bump it deliberately, together with engines.orca when a newer field is used.
+  ORCA_REF: 55ccff19ad4cd8ba28b6f3d2be798c1e626a2c2c
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        node: [20, 24]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node --test
+
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: plugin
+          persist-credentials: false
+
+      - name: Check out Orca
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: stablyai/orca
+          ref: ${{ env.ORCA_REF }}
+          path: orca
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          package_json_file: orca/package.json
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: orca/pnpm-lock.yaml
+
+      # No install scripts: the validator needs only Orca's JavaScript dependencies, not Electron.
+      - name: Install Orca's validator
+        working-directory: orca
+        run: |
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm run build:packages
+
+      - name: Validate the manifest
+        working-directory: orca
+        run: pnpm validate:plugin "$GITHUB_WORKSPACE/plugin"
