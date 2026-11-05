@@ -182,7 +182,7 @@ orca plugin dev load orca-plugin
 approve it with (`--approve <fingerprint>`). Orca shows the same review
 under Settings → Plugins → Development folders.
 
-What it asks for: `agent:read` and `workspace:read` for the three events and
+What it asks for: `agent:read` and `workspace:read` for the declared events and
 the workspace list, `notifications:show` for the receipt, `storage:own` for
 the workspaces it remembers, `settings:own` for its settings. The launch
 hook needs no capability; Orca lists it in the same review.

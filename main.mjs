@@ -417,6 +417,9 @@ export function createDispatcher({
   let listed = { at: -Infinity, workspaces: [] }
   let guardTimer = null
   const line = { reading: false, again: false, timer: null, shown: null, disposed: false }
+  let disposed = false
+  /** Ids the last `workspace.list` put in `guardPaths`, so a later list can drop the ones it lost. */
+  let listedIds = new Set()
   const inFlight = new Set()
   const writer = { host: hostName, pid }
 
@@ -470,9 +473,14 @@ export function createDispatcher({
   async function listWorkspaces() {
     const result = await call('workspace.list', {})
     listed = { at: clock.now(), workspaces: result?.workspaces ?? [] }
+    const ids = new Set()
     for (const row of listed.workspaces)
-      if (row?.id && row.path && (!row.hostId || row.hostId === 'local'))
+      if (row?.id && row.path && (!row.hostId || row.hostId === 'local')) {
         guardPaths.set(row.id, row.path)
+        ids.add(row.id)
+      }
+    for (const id of listedIds) if (!ids.has(id) && !known.has(id)) guardPaths.delete(id)
+    listedIds = ids
     return listed
   }
 
@@ -538,6 +546,7 @@ export function createDispatcher({
   }
 
   function writeHeartbeat() {
+    if (disposed) return
     try {
       const at = new Date(clock.now()).toISOString()
       writeRecord(fs, guardDirectory, 'heartbeat.json', heartbeatRecord({ writer, at, pluginVersion }))
@@ -550,6 +559,7 @@ export function createDispatcher({
   function startGuard() {
     if (guardTimer) return
     const beat = () => {
+      if (disposed) return
       writeHeartbeat()
       track(refreshGuard())
       guardTimer = clock.setTimeout(beat, GUARD_HEARTBEAT_MS)
@@ -912,6 +922,14 @@ export function createDispatcher({
       guardPaths.set(payload.workspaceId, payload.path)
       await remember(payload.workspaceId, payload.path)
     }
+    // The event's id can differ from the id `workspace.list` gives the same path; list again.
+    if (host.has?.('workspace.list')) {
+      try {
+        await listWorkspaces()
+      } catch (error) {
+        log(`could not list workspaces after a creation: ${error.message}`)
+      }
+    }
   }
 
   /** Forgets a removed workspace and wakes its repository, whose line may have lost a launch. */
@@ -919,9 +937,19 @@ export function createDispatcher({
     const workspaceId = payload?.workspaceId
     const path = payload?.path ?? (workspaceId ? guardPaths.get(workspaceId) ?? known.get(workspaceId) : null)
     log(`workspace removed: ${payload?.kind} ${path ?? workspaceId}`)
+    // Let the startup load settle first: it would otherwise re-add what is deleted here.
+    await remembered()
     if (workspaceId) {
       guardPaths.delete(workspaceId)
       await forget(workspaceId)
+    }
+    if (path) {
+      // Every id this path went by: an identity id from `workspace.list` as well as the event's.
+      for (const [id, p] of [...guardPaths]) if (p === path) guardPaths.delete(id)
+      let changed = false
+      for (const [id, p] of [...known]) if (p === path) changed = known.delete(id) || changed
+      if (changed) await store(`could not forget workspace ${workspaceId ?? path}`)
+      listed = { at: listed.at, workspaces: listed.workspaces.filter((w) => w.path !== path) }
     }
     const repo = path ? repositoryOf.get(path) : null
     if (path) repositoryOf.delete(path)
@@ -948,6 +976,7 @@ export function createDispatcher({
     },
     dispose() {
       for (const s of repos.values()) if (s.timer) clock.clearTimeout(s.timer)
+      disposed = true
       if (guardTimer) clock.clearTimeout(guardTimer)
       guardTimer = null
       line.disposed = true
