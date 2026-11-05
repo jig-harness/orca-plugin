@@ -1,0 +1,52 @@
+{
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
+  "manifestVersion": 2,
+  "execution": "trusted-worker",
+  "id": "jig-spike-html",
+  "name": "Jig panel spike (html)",
+  "version": "0.0.0",
+  "description": "Throwaway spike: the Jig panel's inbox, board and address thread as an HTML page in a frame, from fixture JSON. Not for release.",
+  "repository": "https://github.com/jig-harness/orca-plugin",
+  "license": "MIT",
+  "engines": { "orca": ">=1.4.248" },
+  "pluginApi": 1,
+  "main": "worker.mjs",
+  "contributes": {
+    "panels": [{ "id": "jig", "title": "Jig (html)", "icon": "hammer", "entry": "panel/index.html" }],
+    "customEditors": [
+      {
+        "id": "board",
+        "title": "Jig board",
+        "extensions": [".jigboard"],
+        "entry": "panel/board.html",
+        "frame": "isolated"
+      }
+    ],
+    "settings": [
+      {
+        "key": "scenario",
+        "title": "Fixture scenario",
+        "description": "Which fixture the worker serves as the line.",
+        "type": "string",
+        "default": "park-three-decisions",
+        "enum": ["quiet", "full-queue", "backward-moves", "long-needs", "park-three-decisions", "long-thread"]
+      },
+      {
+        "key": "view",
+        "title": "Opening view",
+        "description": "The view the panel opens on. A shot cannot click an html panel (--act is refused), so this picks the view to shoot.",
+        "type": "string",
+        "default": "inbox",
+        "enum": ["inbox", "board", "board-stacked", "board-columns", "thread"]
+      },
+      {
+        "key": "address",
+        "title": "Address",
+        "description": "The address the Addresses view opens.",
+        "type": "string",
+        "default": "drive@jig#456"
+      }
+    ]
+  },
+  "capabilities": [{ "kind": "settings:own" }]
+}

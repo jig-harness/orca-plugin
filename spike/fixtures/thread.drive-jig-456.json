@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "address": "drive@jig#456",
+  "station": "drive",
+  "repo": "jig-harness/jig",
+  "key": "456",
+  "target": {
+    "kind": "pull-request",
+    "number": 456,
+    "title": "Give every station a constant address",
+    "url": "https://github.com/jig-harness/jig/pull/456",
+    "state": "open"
+  },
+  "asOf": "2026-11-05T16:47:30.000Z",
+  "reads": [
+    {
+      "source": "forge",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "source": "tracker",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "source": "launch-records",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "source": "outcome-log",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "holder": {
+    "state": "parked",
+    "launch": null,
+    "account": null,
+    "host": null,
+    "since": "2026-11-05T09:12:00.000Z",
+    "workspace": {
+      "path": "/home/ophir/orca/workspaces/jig/pr-456",
+      "runtime": "orca"
+    }
+  },
+  "waitsOn": {
+    "kind": "person",
+    "act": "answer",
+    "decisions": [
+      "PRRT_kwDOa1",
+      "F-3",
+      "PRRT_kwDOa4"
+    ]
+  },
+  "related": [
+    "pickup@jig#JIG-219"
+  ],
+  "thread": [
+    {
+      "id": "label-event/jig:drive",
+      "at": "2026-11-04T10:00:00.000Z",
+      "kind": "request",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#456"
+      },
+      "summary": "sent drive",
+      "quoted": null,
+      "record": {
+        "kind": "label-event",
+        "id": "jig:drive",
+        "url": "https://github.com/jig-harness/jig/pull/456"
+      },
+      "verb": "drive"
+    },
+    {
+      "id": "launch-record/20261104T100502Z-jig-456",
+      "at": "2026-11-04T10:05:00.000Z",
+      "kind": "launch",
+      "from": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#456"
+      },
+      "summary": "launched a drive pass on account work-a",
+      "quoted": null,
+      "record": {
+        "kind": "launch-record",
+        "id": "20261104T100502Z-jig-456",
+        "url": null
+      },
+      "launch": {
+        "action": "rearm",
+        "account": "work-a",
+        "host": "majordomo"
+      }
+    },
+    {
+      "id": "review-thread/PRRT_kwDOa1",
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "question",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#456"
+      },
+      "to": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "summary": "parked on 3 decisions (scope)",
+      "quoted": {
+        "text": "## Question\nShould `jig ask` read session transcripts in this pull request, or records only?\n\n## Options\n- **A: records only** what the design orders first. Changes: nothing more. Costs: no answer from a session that wrote nothing yet.\n- **B: records, then transcripts behind `--transcripts`** Changes: a transcript reader and its tests. Costs: about 400 lines and a second review round.\n\n## Recommended\nA, because the design orders `ask` before transcripts and the flag can come in its own step\n\n## Class\nscope\n\n## Steps for a person\nComment `answer PRRT_kwDOa1: <your choice>` on the pull request.\n\n## Already done\nThe address parser and the record resolver are implemented, with tests.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "review-thread",
+        "id": "PRRT_kwDOa1",
+        "url": "https://github.com/jig-harness/jig/pull/456#discussion_r2300"
+      },
+      "decision": {
+        "key": "PRRT_kwDOa1",
+        "class": "scope"
+      }
+    },
+    {
+      "id": "pr-comment/3301",
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "question",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#456"
+      },
+      "to": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "summary": "parked on 3 decisions (destructive)",
+      "quoted": {
+        "text": "## Question\nRename the `launch` table column `stage` to `station`, with a migration?\n\n## Options\n- **A: rename now** Changes: one migration, every reader. Costs: a host on the old plugin cannot read the state database until it updates.\n- **B: keep `stage` and map it in the resolver** Changes: one mapping. Costs: two words for one thing until a later release.\n\n## Recommended\nB, because a rename breaks a host that has not updated\n\n## Class\ndestructive\n\n## Steps for a person\nComment `answer F-3: <your choice>` on the pull request.\n\n## Already done\nThe resolver reads `stage` today.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "pr-comment",
+        "id": "3301",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-3301"
+      },
+      "decision": {
+        "key": "F-3",
+        "class": "destructive"
+      }
+    },
+    {
+      "id": "review-thread/PRRT_kwDOa4",
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "question",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#456"
+      },
+      "to": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "summary": "parked on 3 decisions (naming)",
+      "quoted": {
+        "text": "## Question\nWhat should a standing role without a key be called: `arbiter@jig` or `arbiter@jig#-`?\n\n## Options\n- **A: `arbiter@jig`** Changes: the grammar allows an empty key. Costs: one more parse branch.\n- **B: `arbiter@jig#-`** Changes: none. Costs: an odd-looking address people will mistype.\n\n## Recommended\nA, because people type it\n\n## Class\nnaming\n\n## Steps for a person\nComment `answer PRRT_kwDOa4: <your choice>` on the pull request.\n\n## Already done\nBoth forms parse in the tests; only one is accepted.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "review-thread",
+        "id": "PRRT_kwDOa4",
+        "url": "https://github.com/jig-harness/jig/pull/456#discussion_r2302"
+      },
+      "decision": {
+        "key": "PRRT_kwDOa4",
+        "class": "naming"
+      }
+    }
+  ],
+  "truncated": null
+}

@@ -1,0 +1,490 @@
+{
+  "now": "2026-11-05T16:47:30.000Z",
+  "timeZone": "Asia/Jerusalem",
+  "plugin": "0.131.0",
+  "schema": 9,
+  "line": {
+    "version": 1,
+    "runId": "20261105T164500Z",
+    "startedAt": "2026-11-05T16:45:00.000Z",
+    "finishedAt": "2026-11-05T16:46:03.000Z",
+    "exitStatus": 0,
+    "apply": true,
+    "applyWithheld": null,
+    "intervalMs": 300000,
+    "longestTickMs": 120000,
+    "recentTicksMs": [
+      61000,
+      58000,
+      63000
+    ],
+    "plugin": "0.131.0",
+    "timeZone": "Asia/Jerusalem",
+    "accounts": [
+      {
+        "name": "work-a",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 1,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "work-b",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "codex-a",
+        "vendor": "codex",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      }
+    ],
+    "lastAccount": "work-a",
+    "sessions": [
+      {
+        "record": "20261105T090202Z-api-1216",
+        "account": "work-a",
+        "vendor": "claude",
+        "repo": "example-org/api",
+        "stage": "rearm",
+        "target": "PR #1216",
+        "pr": 1216,
+        "item": null,
+        "url": "https://github.com/example-org/api/pull/1216",
+        "title": "Split the invoice table migration",
+        "createdAt": "2026-11-05T09:02:00.000Z",
+        "launch": "alive",
+        "launchReason": null,
+        "agent": null,
+        "round": 5,
+        "samples": [
+          {
+            "round": 4,
+            "threads": 2,
+            "at": "2026-11-05T09:02:00.000Z"
+          },
+          {
+            "round": 5,
+            "threads": 1,
+            "at": "2026-11-05T09:02:00.000Z"
+          }
+        ],
+        "heartbeat": "2026-11-05T16:44:00.000Z",
+        "passTimeoutSec": 2700,
+        "workspace": "/home/ophir/orca/workspaces/api/pr-1216",
+        "replaces": null,
+        "episode": null,
+        "nudge": null,
+        "drifting": null,
+        "waiting": null
+      }
+    ],
+    "needs": [
+      {
+        "cause": "needs-person",
+        "stage": "rearm",
+        "repo": "example-org/web",
+        "target": "PR #480",
+        "pr": 480,
+        "item": null,
+        "url": "https://github.com/example-org/web/pull/480",
+        "title": "Lazy-load the settings page",
+        "since": "2026-11-05T08:40:00.000Z",
+        "reason": "a check failed after the drive converged: e2e (chromium), required",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T08:45:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "needs-person",
+        "stage": "rearm",
+        "repo": "jig-harness/jig",
+        "target": "PR #466",
+        "pr": 466,
+        "item": null,
+        "url": "https://github.com/jig-harness/jig/pull/466",
+        "title": "Name the account in the receipt",
+        "since": "2026-11-05T08:55:00.000Z",
+        "reason": "a thread was opened after the drive converged: PRRT_kwDOb9 by ophir-docomply",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T09:00:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      }
+    ],
+    "queue": [
+      {
+        "source": "re-armable",
+        "group": "starts",
+        "repo": "example-org/api",
+        "target": "PR #1214",
+        "pr": 1214,
+        "item": null,
+        "url": "https://github.com/example-org/api/pull/1214",
+        "title": "Log the webhook retry count",
+        "why": "drive ledger stale: stopped 0 (converged), and now conflicting with its base: re-drive on any account",
+        "stale": true,
+        "assignedBy": null,
+        "hold": null,
+        "launch": null
+      },
+      {
+        "source": "re-armable",
+        "group": "held",
+        "repo": "example-org/infra",
+        "target": "PR #97",
+        "pr": 97,
+        "item": null,
+        "url": "https://github.com/example-org/infra/pull/97",
+        "title": "Pin the runner image digest",
+        "why": "converged pull request behind its base, updated after PR #99",
+        "stale": false,
+        "assignedBy": null,
+        "hold": null,
+        "launch": null
+      }
+    ],
+    "repos": [
+      {
+        "slug": "jig-harness/jig",
+        "path": "/home/ophir/dev/jig",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/web",
+        "path": "/home/ophir/dev/web",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/api",
+        "path": "/home/ophir/dev/api",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/infra",
+        "path": "/home/ophir/dev/infra",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      }
+    ],
+    "board": {
+      "proposed": true,
+      "cards": [
+        {
+          "key": "example-org/api PR #1214",
+          "address": "drive@api#1214",
+          "column": "coming",
+          "lane": null,
+          "repo": "example-org/api",
+          "target": "PR #1214",
+          "pr": 1214,
+          "item": null,
+          "url": "https://github.com/example-org/api/pull/1214",
+          "title": "Log the webhook retry count",
+          "enteredAt": "2026-11-05T08:31:00.000Z",
+          "previous": {
+            "column": "ready",
+            "lane": "merge-now",
+            "at": "2026-11-05T08:31:00.000Z",
+            "cause": "conflicting",
+            "was": "17 h"
+          },
+          "waitsOn": {
+            "kind": "waiting",
+            "what": "a free slot to re-drive"
+          },
+          "driver": null,
+          "status": {
+            "conflicts": "conflicting",
+            "checks": "green",
+            "failing": [],
+            "threads": 0,
+            "merge": "not-ready"
+          },
+          "verifiedSha": null,
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": null
+        },
+        {
+          "key": "example-org/web PR #480",
+          "address": "drive@web#480",
+          "column": "needs-you",
+          "lane": null,
+          "repo": "example-org/web",
+          "target": "PR #480",
+          "pr": 480,
+          "item": null,
+          "url": "https://github.com/example-org/web/pull/480",
+          "title": "Lazy-load the settings page",
+          "enteredAt": "2026-11-05T08:40:00.000Z",
+          "previous": {
+            "column": "ready",
+            "lane": "merge-now",
+            "at": "2026-11-05T08:40:00.000Z",
+            "cause": "check failed",
+            "was": "6 h"
+          },
+          "waitsOn": {
+            "kind": "person",
+            "act": "re-run a check"
+          },
+          "driver": null,
+          "status": {
+            "conflicts": "none",
+            "checks": "failing",
+            "failing": [
+              {
+                "name": "e2e (chromium)",
+                "app": "github-actions",
+                "required": true
+              }
+            ],
+            "threads": 0,
+            "merge": "not-ready"
+          },
+          "verifiedSha": null,
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": {
+            "needs": 0
+          }
+        },
+        {
+          "key": "jig-harness/jig PR #466",
+          "address": "drive@jig#466",
+          "column": "needs-you",
+          "lane": null,
+          "repo": "jig-harness/jig",
+          "target": "PR #466",
+          "pr": 466,
+          "item": null,
+          "url": "https://github.com/jig-harness/jig/pull/466",
+          "title": "Name the account in the receipt",
+          "enteredAt": "2026-11-05T08:55:00.000Z",
+          "previous": {
+            "column": "ready",
+            "lane": "approve-first",
+            "at": "2026-11-05T08:55:00.000Z",
+            "cause": "thread opened",
+            "was": "2 h"
+          },
+          "waitsOn": {
+            "kind": "person",
+            "act": "answer"
+          },
+          "driver": null,
+          "status": {
+            "conflicts": "none",
+            "checks": "green",
+            "failing": [],
+            "threads": 1,
+            "merge": "not-ready"
+          },
+          "verifiedSha": null,
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": {
+            "needs": 1
+          }
+        },
+        {
+          "key": "example-org/api PR #1216",
+          "address": "drive@api#1216",
+          "column": "driven",
+          "lane": null,
+          "repo": "example-org/api",
+          "target": "PR #1216",
+          "pr": 1216,
+          "item": null,
+          "url": "https://github.com/example-org/api/pull/1216",
+          "title": "Split the invoice table migration",
+          "enteredAt": "2026-11-05T09:02:00.000Z",
+          "previous": {
+            "column": "ready",
+            "lane": "merge-now",
+            "at": "2026-11-05T09:01:00.000Z",
+            "cause": "head moved",
+            "was": "1 d"
+          },
+          "waitsOn": {
+            "kind": "waiting",
+            "what": "the drive, round 5"
+          },
+          "driver": "this machine, account work-a",
+          "status": {
+            "conflicts": "none",
+            "checks": "running",
+            "failing": [],
+            "threads": 1,
+            "merge": "not-ready"
+          },
+          "verifiedSha": null,
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": null
+        },
+        {
+          "key": "example-org/infra PR #97",
+          "address": "drive@infra#97",
+          "column": "coming",
+          "lane": null,
+          "repo": "example-org/infra",
+          "target": "PR #97",
+          "pr": 97,
+          "item": null,
+          "url": "https://github.com/example-org/infra/pull/97",
+          "title": "Pin the runner image digest",
+          "enteredAt": "2026-11-05T10:12:00.000Z",
+          "previous": {
+            "column": "ready",
+            "lane": "merge-now",
+            "at": "2026-11-05T10:12:00.000Z",
+            "cause": "behind",
+            "was": "45 min"
+          },
+          "waitsOn": {
+            "kind": "waiting",
+            "what": "PR #99 to be updated first"
+          },
+          "driver": null,
+          "status": {
+            "conflicts": "behind",
+            "checks": "green",
+            "failing": [],
+            "threads": 0,
+            "merge": "update-next"
+          },
+          "verifiedSha": null,
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": null
+        },
+        {
+          "key": "example-org/infra PR #99",
+          "address": "drive@infra#99",
+          "column": "ready",
+          "lane": "update-next",
+          "repo": "example-org/infra",
+          "target": "PR #99",
+          "pr": 99,
+          "item": null,
+          "url": "https://github.com/example-org/infra/pull/99",
+          "title": "Raise the disk quota for the cache",
+          "enteredAt": "2026-11-05T10:12:00.000Z",
+          "previous": {
+            "column": "ready",
+            "lane": "merge-now",
+            "at": "2026-11-05T10:12:00.000Z",
+            "cause": "behind",
+            "was": "3 h"
+          },
+          "waitsOn": {
+            "kind": "person",
+            "act": "update the branch"
+          },
+          "driver": null,
+          "status": {
+            "conflicts": "behind",
+            "checks": "green",
+            "failing": [],
+            "threads": 0,
+            "merge": "update-next"
+          },
+          "verifiedSha": "bf66dbf66dbf66dbf66dbf66dbf66dbf66dbf66d",
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": null
+        },
+        {
+          "key": "example-org/web PR #476",
+          "address": "followup@web#476",
+          "column": "merged",
+          "lane": null,
+          "repo": "example-org/web",
+          "target": "PR #476",
+          "pr": 476,
+          "item": null,
+          "url": "https://github.com/example-org/web/pull/476",
+          "title": "Retry the webhook on a 5xx",
+          "enteredAt": "2026-11-05T08:30:00.000Z",
+          "previous": null,
+          "waitsOn": {
+            "kind": "waiting",
+            "what": "its follow-up, running"
+          },
+          "driver": null,
+          "status": null,
+          "verifiedSha": null,
+          "mergeCommand": null,
+          "unblocks": [],
+          "notRead": null,
+          "placedFrom": null
+        }
+      ],
+      "overflow": {},
+      "stoodDown": {
+        "count": 0,
+        "newest": []
+      }
+    }
+  }
+}

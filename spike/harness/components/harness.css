@@ -1,0 +1,4 @@
+/* Orca's own stylesheet; Tailwind scans Orca's renderer for the classes its controls use.
+   Paths are relative to the copy vite.config.mjs makes inside the checkout. */
+@import '../src/renderer/src/assets/main.css';
+@source '../src/renderer/src';

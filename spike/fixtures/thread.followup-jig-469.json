@@ -1,0 +1,505 @@
+{
+  "version": 1,
+  "address": "followup@jig#469",
+  "station": "followup",
+  "repo": "jig-harness/jig",
+  "key": "469",
+  "target": {
+    "kind": "pull-request",
+    "number": 469,
+    "title": "Wake the dispatcher on agent status",
+    "url": "https://github.com/jig-harness/jig/pull/469",
+    "state": "merged"
+  },
+  "asOf": "2026-11-05T16:47:30.000Z",
+  "reads": [
+    {
+      "source": "forge",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "source": "tracker",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "source": "launch-records",
+      "ok": true,
+      "detail": null
+    },
+    {
+      "source": "outcome-log",
+      "ok": true,
+      "detail": null
+    }
+  ],
+  "holder": {
+    "state": "held",
+    "launch": "20261105T161202Z-jig-469",
+    "account": "work-a",
+    "host": "majordomo",
+    "since": "2026-11-05T16:12:00.000Z",
+    "workspace": {
+      "path": "/home/ophir/orca/workspaces/jig/pr-469",
+      "runtime": "orca"
+    }
+  },
+  "waitsOn": {
+    "kind": "waiting",
+    "what": "the follow-up pass, running for 35 min"
+  },
+  "related": [
+    "drive@jig#469",
+    "pickup@jig#JIG-212"
+  ],
+  "thread": [
+    {
+      "id": "tracker-assignment/JIG-212",
+      "at": "2026-11-03T09:14:00.000Z",
+      "kind": "request",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "pickup@jig#JIG-212"
+      },
+      "summary": "assigned to the factory identity",
+      "quoted": {
+        "text": "Wake Jig’s dispatcher when an Orca agent waits or finishes, instead of waiting for the timer.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "tracker-assignment",
+        "id": "JIG-212",
+        "url": "https://linear.app/jig/issue/JIG-212"
+      },
+      "verb": "assign",
+      "via": "pickup@jig#JIG-212"
+    },
+    {
+      "id": "launch-record/20261103T092002Z-jig-JIG-212",
+      "at": "2026-11-03T09:20:00.000Z",
+      "kind": "launch",
+      "from": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "to": {
+        "kind": "station",
+        "name": "pickup@jig#JIG-212"
+      },
+      "summary": "launched a pickup on account work-b",
+      "quoted": null,
+      "record": {
+        "kind": "launch-record",
+        "id": "20261103T092002Z-jig-JIG-212",
+        "url": null
+      },
+      "launch": {
+        "action": "pickup",
+        "account": "work-b",
+        "host": "majordomo"
+      },
+      "via": "pickup@jig#JIG-212"
+    },
+    {
+      "id": "pr-comment/3101",
+      "at": "2026-11-03T11:02:00.000Z",
+      "kind": "outcome",
+      "from": {
+        "kind": "station",
+        "name": "pickup@jig#JIG-212"
+      },
+      "to": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "summary": "opened PR #469 and armed its drive",
+      "quoted": {
+        "text": "Opened #469: wakes the dispatcher on `agent.status.changed`, one tick per repository a minute.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "pr-comment",
+        "id": "3101",
+        "url": "https://github.com/jig-harness/jig/pull/469#issuecomment-3101"
+      },
+      "outcome": {
+        "class": "opened",
+        "exit": 0
+      },
+      "via": "pickup@jig#JIG-212"
+    },
+    {
+      "id": "launch-record/20261103T110302Z-jig-469",
+      "at": "2026-11-03T11:03:00.000Z",
+      "kind": "launch",
+      "from": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "launched a drive pass on account work-a",
+      "quoted": null,
+      "record": {
+        "kind": "launch-record",
+        "id": "20261103T110302Z-jig-469",
+        "url": null
+      },
+      "launch": {
+        "action": "rearm",
+        "account": "work-a",
+        "host": "majordomo"
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "review-thread/PRRT_kwDOc2",
+      "at": "2026-11-03T12:40:00.000Z",
+      "kind": "question",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "to": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "summary": "parked on 1 decision (scope)",
+      "quoted": {
+        "text": "## Question\nShould a status change inside the minute be dropped, or scheduled for the minute’s end?\n\n## Options\n- **A: drop it** simpler. Costs: a wake-up can be lost.\n- **B: schedule one tick at the minute’s end** Costs: a timer per repository.\n\n## Recommended\nB, because no wake-up should be lost",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "review-thread",
+        "id": "PRRT_kwDOc2",
+        "url": "https://github.com/jig-harness/jig/pull/469#discussion_r2011"
+      },
+      "decision": {
+        "key": "PRRT_kwDOc2",
+        "class": "scope"
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "pr-comment/3122",
+      "at": "2026-11-03T17:05:00.000Z",
+      "kind": "answer",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "answered PRRT_kwDOc2",
+      "quoted": {
+        "text": "answer PRRT_kwDOc2: B, and never run two ticks of one repository at once.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "pr-comment",
+        "id": "3122",
+        "url": "https://github.com/jig-harness/jig/pull/469#issuecomment-3122"
+      },
+      "inReplyTo": "review-thread/PRRT_kwDOc2",
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "launch-record/20261103T171002Z-jig-469",
+      "at": "2026-11-03T17:10:00.000Z",
+      "kind": "launch",
+      "from": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "re-armed the drive on account work-a",
+      "quoted": null,
+      "record": {
+        "kind": "launch-record",
+        "id": "20261103T171002Z-jig-469",
+        "url": null
+      },
+      "launch": {
+        "action": "rearm",
+        "account": "work-a",
+        "host": "majordomo"
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "pr-comment/3140",
+      "at": "2026-11-04T08:02:00.000Z",
+      "kind": "question",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "to": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "summary": "parked on 2 decisions (destructive, naming)",
+      "quoted": {
+        "text": "## Question\nRemove the storage keep-alive now that hooks keep the worker resident?\n\n## Recommended\nNo: hooks are not in this release.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "pr-comment",
+        "id": "3140",
+        "url": "https://github.com/jig-harness/jig/pull/469#issuecomment-3140"
+      },
+      "decision": {
+        "key": "F-2",
+        "class": "destructive"
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "review-thread/PRRT_kwDOc9",
+      "at": "2026-11-04T08:02:00.000Z",
+      "kind": "question",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "to": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "summary": "parked on 2 decisions (destructive, naming)",
+      "quoted": {
+        "text": "## Question\nName the setting `jigCommand` or `command`?\n\n## Recommended\n`jigCommand`, since Orca shows settings of every plugin together.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "review-thread",
+        "id": "PRRT_kwDOc9",
+        "url": "https://github.com/jig-harness/jig/pull/469#discussion_r2077"
+      },
+      "decision": {
+        "key": "PRRT_kwDOc9",
+        "class": "naming"
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "pr-comment/3151",
+      "at": "2026-11-04T09:31:00.000Z",
+      "kind": "answer",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "answered F-2",
+      "quoted": {
+        "text": "answer F-2: keep it; we remove it with the launch guard.",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "pr-comment",
+        "id": "3151",
+        "url": "https://github.com/jig-harness/jig/pull/469#issuecomment-3151"
+      },
+      "inReplyTo": "pr-comment/3140",
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "pr-comment/3152",
+      "at": "2026-11-04T09:32:00.000Z",
+      "kind": "answer",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "answered PRRT_kwDOc9",
+      "quoted": {
+        "text": "answer PRRT_kwDOc9: jigCommand",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "pr-comment",
+        "id": "3152",
+        "url": "https://github.com/jig-harness/jig/pull/469#issuecomment-3152"
+      },
+      "inReplyTo": "review-thread/PRRT_kwDOc9",
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "label-event/jig:hold",
+      "at": "2026-11-04T09:35:00.000Z",
+      "kind": "request",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "sent hold",
+      "quoted": null,
+      "record": {
+        "kind": "label-event",
+        "id": "jig:hold",
+        "url": "https://github.com/jig-harness/jig/pull/469"
+      },
+      "verb": "hold",
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "label-event/jig:drive",
+      "at": "2026-11-04T14:00:00.000Z",
+      "kind": "request",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "sent drive",
+      "quoted": null,
+      "record": {
+        "kind": "label-event",
+        "id": "jig:drive",
+        "url": "https://github.com/jig-harness/jig/pull/469"
+      },
+      "verb": "drive",
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "launch-record/20261104T140502Z-jig-469",
+      "at": "2026-11-04T14:05:00.000Z",
+      "kind": "launch",
+      "from": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "to": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "summary": "re-armed the drive on account codex-a",
+      "quoted": null,
+      "record": {
+        "kind": "launch-record",
+        "id": "20261104T140502Z-jig-469",
+        "url": null
+      },
+      "launch": {
+        "action": "rearm",
+        "account": "codex-a",
+        "host": "majordomo"
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "ledger/drive-ledger",
+      "at": "2026-11-04T15:48:00.000Z",
+      "kind": "outcome",
+      "from": {
+        "kind": "station",
+        "name": "drive@jig#469"
+      },
+      "to": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "summary": "converged at the verified head",
+      "quoted": {
+        "text": "drive ledger: stopped 0 (converged) at 9c41e0d, round 4, 0 unresolved threads",
+        "format": "markdown",
+        "truncated": false
+      },
+      "record": {
+        "kind": "ledger",
+        "id": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/469#issuecomment-3190"
+      },
+      "outcome": {
+        "class": "converged",
+        "exit": 0
+      },
+      "via": "drive@jig#469"
+    },
+    {
+      "id": "merge/9c41e0d",
+      "at": "2026-11-05T15:58:00.000Z",
+      "kind": "outcome",
+      "from": {
+        "kind": "person",
+        "name": "ophir-docomply"
+      },
+      "to": {
+        "kind": "station",
+        "name": "followup@jig#469"
+      },
+      "summary": "merged by a person",
+      "quoted": null,
+      "record": {
+        "kind": "merge",
+        "id": "9c41e0d",
+        "url": "https://github.com/jig-harness/jig/pull/469"
+      },
+      "outcome": {
+        "class": "merged",
+        "exit": null
+      }
+    },
+    {
+      "id": "launch-record/20261105T161202Z-jig-469",
+      "at": "2026-11-05T16:12:00.000Z",
+      "kind": "launch",
+      "from": {
+        "kind": "dispatcher",
+        "name": "dispatcher on majordomo"
+      },
+      "to": {
+        "kind": "station",
+        "name": "followup@jig#469"
+      },
+      "summary": "launched the follow-up on account work-a",
+      "quoted": null,
+      "record": {
+        "kind": "launch-record",
+        "id": "20261105T161202Z-jig-469",
+        "url": null
+      },
+      "launch": {
+        "action": "followup",
+        "account": "work-a",
+        "host": "majordomo"
+      }
+    }
+  ],
+  "truncated": null
+}
