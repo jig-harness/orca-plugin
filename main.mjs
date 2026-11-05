@@ -315,8 +315,12 @@ function firstLine(text) {
 }
 
 /** Runs a program to its end without a shell; never rejects. */
-export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, platform }) {
+export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, platform, signal: abort }) {
   return new Promise((settle) => {
+    if (abort?.aborted) {
+      settle({ code: null, stdout: '', stderr: '', error: new Error('cancelled') })
+      return
+    }
     let child
     try {
       child = spawn(argv[0], argv.slice(1), {
@@ -356,6 +360,8 @@ export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, 
       }, KILL_GRACE_MS)
     }
     const deadline = setTimeout(() => stop(`ran past ${Math.round(timeoutMs / 1000)}s`), timeoutMs)
+    const onAbort = () => stop('cancelled')
+    abort?.addEventListener('abort', onAbort, { once: true })
     for (const stream of ['stdout', 'stderr']) {
       child[stream].on('data', (chunk) => {
         size += chunk.length
@@ -368,6 +374,14 @@ export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, 
       done = true
       clearTimeout(deadline)
       clearTimeout(killer)
+      abort?.removeEventListener('abort', onAbort)
+      // The direct child closing says nothing about its group: a descendant that ignored SIGTERM
+      // is killed now rather than left behind once the escalation timer is cleared.
+      if (stopped && platform !== 'win32') {
+        try {
+          process.kill(-child.pid, 'SIGKILL')
+        } catch {}
+      }
       settle({
         code,
         stdout: Buffer.concat(out.stdout).toString('utf8'),
@@ -416,7 +430,7 @@ export function createDispatcher({
   let loaded = null
   let listed = { at: -Infinity, workspaces: [] }
   let guardTimer = null
-  const line = { reading: false, again: false, timer: null, shown: null, disposed: false }
+  const line = { reading: false, again: false, timer: null, shown: null, disposed: false, abort: null }
   let disposed = false
   /** Ids the last `workspace.list` put in `guardPaths`, so a later list can drop the ones it lost. */
   let listedIds = new Set()
@@ -623,7 +637,7 @@ export function createDispatcher({
     return repo.path
   }
 
-  async function jigCommand() {
+  async function jigCommand(signal) {
     let configured = ''
     try {
       const result = await call('settings.get', {})
@@ -632,15 +646,16 @@ export function createDispatcher({
     } catch (error) {
       log(`could not read the ${SETTING_KEY} setting, using the installed plugin: ${error.message}`)
     }
+    signal?.throwIfAborted()
     if (configured) {
       const args = splitCommand(configured)
       if (args.length > 0) return args
     }
-    return installedCommand()
+    return installedCommand(signal)
   }
 
   /** The installed jig plugin's command, found as Jig's own timer finds it. */
-  async function installedCommand() {
+  async function installedCommand(signal) {
     const failures = []
     const tools = [
       ['claude', claudePluginDirectory],
@@ -649,12 +664,15 @@ export function createDispatcher({
     for (const [name, directoryOf] of tools) {
       const program = findOnPath(name, env, platform, exists)
       if (!program) continue
+      signal?.throwIfAborted()
       const answer = await run([program, 'plugin', 'list', '--json'], {
         timeoutMs: 30_000,
         maxBytes: 4 * 1024 * 1024,
         env,
-        platform
+        platform,
+        signal
       })
+      signal?.throwIfAborted()
       if (answer.code !== 0) {
         failures.push(`${name}: ${firstLine(answer.stderr) || answer.error?.message || 'failed'}`)
         continue
@@ -750,11 +768,12 @@ export function createDispatcher({
   }
 
   /** Resolves the command, runs `jig dispatch line --json` and reads the settings. */
-  async function readLineOnce() {
+  async function readLineOnce(signal) {
     let command
     try {
-      command = await jigCommand()
+      command = await jigCommand(signal)
     } catch (error) {
+      if (signal.aborted) throw error
       const why = error instanceof JigCommandError ? error.message : String(error?.message)
       return { text: 'Jig not found', tone: 'danger', icon: 'error', tooltip: `Jig: ${why}` }
     }
@@ -762,30 +781,43 @@ export function createDispatcher({
       timeoutMs: LINE_READ_DEADLINE_MS,
       maxBytes: 4 * 1024 * 1024,
       env,
-      platform
+      platform,
+      signal
     })
-    return lineStatus(read, { intervalMs: await settingIntervalMs(), now: clock.now() })
+    signal.throwIfAborted()
+    const intervalMs = await settingIntervalMs()
+    signal.throwIfAborted()
+    return lineStatus(read, { intervalMs, now: clock.now() })
   }
 
   /** The whole read, command resolution and settings included, settling at the deadline. */
   async function readLine() {
     let timer = null
+    const control = new AbortController()
+    line.abort = control
     const deadline = new Promise((settle) => {
       timer = clock.setTimeout(
-        () =>
+        () => {
+          // Expiry stops the abandoned read: no further step starts and a running program is killed.
+          control.abort()
           settle(
             lineStatus(
               { code: null, stdout: '', stderr: '', error: new Error(`the line read ran past ${LINE_READ_DEADLINE_MS / 1000}s`) },
               { intervalMs: 0, now: clock.now() }
             )
-          ),
+          )
+        },
         LINE_READ_DEADLINE_MS
       )
     })
     try {
-      return await Promise.race([readLineOnce(), deadline])
+      const read = readLineOnce(control.signal)
+      // The abandoned read ends in an abort rejection nobody awaits.
+      read.catch(() => {})
+      return await Promise.race([read, deadline])
     } finally {
       clock.clearTimeout(timer)
+      if (line.abort === control) line.abort = null
     }
   }
 
@@ -981,6 +1013,7 @@ export function createDispatcher({
       guardTimer = null
       line.disposed = true
       line.again = false
+      line.abort?.abort()
       if (line.timer) clock.clearTimeout(line.timer)
       line.timer = null
     }

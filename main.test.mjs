@@ -979,6 +979,98 @@ describe('the status bar', () => {
     assert.notEqual(result.code, 0)
   })
 
+  test('a descendant that ignores SIGTERM is killed even when the direct child closes first', { skip: process.platform === 'win32' }, async () => {
+    const script =
+      `node -e "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)" >/dev/null 2>&1 & echo $!; sleep 30`
+    const result = await runProgram(['sh', '-c', script], {
+      timeoutMs: 300,
+      env: process.env,
+      platform: process.platform
+    })
+    assert.match(result.error.message, /ran past/)
+    const survivor = Number(result.stdout.trim())
+    assert.ok(survivor > 0, 'the descendant reported its pid')
+    let alive = true
+    for (let i = 0; i < 20 && alive; i++) {
+      try {
+        process.kill(survivor, 0)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      } catch {
+        alive = false
+      }
+    }
+    assert.equal(alive, false, 'the descendant did not outlive the timeout')
+  })
+
+  test('an aborted program is stopped and an already-aborted one never starts', { skip: process.platform === 'win32' }, async () => {
+    const control = new AbortController()
+    const pending = runProgram([process.execPath, '-e', 'setInterval(() => {}, 1000)'], {
+      timeoutMs: 60_000,
+      env: process.env,
+      platform: process.platform,
+      signal: control.signal
+    })
+    setTimeout(() => control.abort(), 100)
+    const result = await pending
+    assert.match(result.error.message, /cancelled/)
+    const again = await runProgram([process.execPath, '-e', ''], {
+      timeoutMs: 1000,
+      env: process.env,
+      platform: process.platform,
+      signal: control.signal
+    })
+    assert.match(again.error.message, /cancelled/)
+  })
+
+  test('a read that expired while settings were pending starts no program afterwards', async () => {
+    let releaseSettings = null
+    let held = false
+    const h = harness({
+      statusBar: true,
+      hostCall: (method) => {
+        if (method === 'settings.get' && !held) {
+          held = true
+          return new Promise((resolve) => {
+            releaseSettings = () => resolve({ settings: { jigCommand: '', dispatchIntervalMinutes: 5 } })
+          })
+        }
+        return undefined
+      }
+    })
+    h.dispatcher.startStatusBar()
+    await new Promise((resolve) => setImmediate(resolve))
+    h.clock.advance(LINE_READ_DEADLINE_MS)
+    await h.settle()
+    assert.equal(h.items[0].text, 'Jig line unreadable')
+    releaseSettings()
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(h.runs.filter((argv) => argv.includes('plugin')).length, 0, 'command discovery stopped')
+    assert.equal(h.lineReads().length, 0, 'the abandoned read launched nothing')
+  })
+
+  test('dispose cancels a read that is still resolving its command', async () => {
+    let releaseSettings = null
+    let held = false
+    const h = harness({
+      statusBar: true,
+      hostCall: (method) => {
+        if (method === 'settings.get' && !held) {
+          held = true
+          return new Promise((resolve) => {
+            releaseSettings = () => resolve({ settings: { jigCommand: '', dispatchIntervalMinutes: 5 } })
+          })
+        }
+        return undefined
+      }
+    })
+    h.dispatcher.startStatusBar()
+    await new Promise((resolve) => setImmediate(resolve))
+    h.dispatcher.dispose()
+    releaseSettings()
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(h.runs.length, 0, 'no program started after dispose')
+  })
+
   test('a runner error wins over a zero exit and healthy-looking output', () => {
     const read = {
       code: 0,
