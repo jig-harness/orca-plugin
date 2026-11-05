@@ -714,13 +714,76 @@ describe('workspace.removed', () => {
   })
 
   test('forgets every id the path went by, not only the event\'s', async () => {
-    const h = await guardedHarness()
-    h.dispatcher.onWorkspaceCreated({ workspaceId: WT_ID, kind: 'worktree', path: WORKTREE })
-    await h.settle()
-    await h.dispatcher.onWorkspaceRemoved({ workspaceId: 'identity-id', kind: 'worktree', path: WORKTREE })
+    const h = await guardedHarness({ list: [{ id: 'identity-id', path: WORKTREE }] })
+    const denied = { deny: 'jig gc is removing this worktree' }
+    h.fs.files.set(ADMISSION, '{"kind":"orca-guard-admission"}\n')
+    assert.deepEqual(h.dispatcher.onLaunchBefore(launch()), denied, 'the event\'s id is guarded')
+    assert.deepEqual(h.dispatcher.onLaunchBefore(launch({ workspaceId: 'identity-id' })), denied, 'so is the listed id')
+
+    await h.dispatcher.onWorkspaceRemoved({ workspaceId: WT_ID, kind: 'worktree', path: WORKTREE })
     await h.settle()
     h.fs.files.set(ADMISSION, '')
-    assert.equal(h.dispatcher.onLaunchBefore(launch()), undefined, 'the hook no longer knows the path')
+    assert.equal(h.dispatcher.onLaunchBefore(launch()), undefined, 'the event\'s id is gone')
+    assert.equal(h.dispatcher.onLaunchBefore(launch({ workspaceId: 'identity-id' })), undefined, 'the listed id is gone')
+    assert.deepEqual(h.store.get('workspaces'), {})
+  })
+
+  test('a list that was pending during the removal does not restore the workspace', async () => {
+    let hold = false
+    let answer = null
+    const h = await guardedHarness({
+      list: [],
+      hostCall: (method) => {
+        if (method === 'workspace.list' && hold)
+          return new Promise((resolve) => {
+            answer = () => resolve({ workspaces: [{ id: 'identity-id', path: WORKTREE }], truncated: false })
+          })
+      }
+    })
+    hold = true
+    h.dispatcher.onWorkspaceCreated({ workspaceId: 'other-id', kind: 'worktree', path: '/work/other' })
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.ok(answer, 'the list is outstanding')
+
+    await h.dispatcher.onWorkspaceRemoved({ workspaceId: WT_ID, kind: 'worktree', path: WORKTREE })
+    hold = false
+    answer()
+    await h.settle()
+    h.fs.files.set(ADMISSION, '{"kind":"orca-guard-admission"}\n')
+    assert.equal(
+      h.dispatcher.onLaunchBefore(launch({ workspaceId: 'identity-id' })),
+      undefined,
+      'the earlier snapshot did not bring the removed workspace back'
+    )
+  })
+
+  test('an older list response does not prune what a newer one listed', async () => {
+    let hold = false
+    let older = null
+    const list = []
+    const h = harness({
+      list,
+      hostCall: (method) => {
+        if (method === 'workspace.list' && hold)
+          return new Promise((resolve) => {
+            older = () => resolve({ workspaces: [], truncated: false })
+          })
+      }
+    })
+    hold = true
+    h.dispatcher.onWorkspaceCreated({ workspaceId: 'a-id', kind: 'worktree', path: '/work/a' })
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.ok(older, 'the first list is outstanding')
+
+    hold = false
+    list.push({ id: 'identity-id', path: WORKTREE })
+    await h.dispatcher.onWorkspaceCreated({ workspaceId: 'b-id', kind: 'worktree', path: '/work/b' })
+    older()
+    await h.settle()
+    h.fs.files.set(ADMISSION, '{"kind":"orca-guard-admission"}\n')
+    assert.deepEqual(h.dispatcher.onLaunchBefore(launch({ workspaceId: 'identity-id' })), {
+      deny: 'jig gc is removing this worktree'
+    })
   })
 
   test('a workspace whose repository was never resolved wakes nothing', async () => {

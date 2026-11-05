@@ -307,6 +307,12 @@ export function createDispatcher({
   let disposed = false
   /** Ids the last `workspace.list` put in `guardPaths`, so a later list can drop the ones it lost. */
   let listedIds = new Set()
+  /** Refresh bookkeeping: a response is stale if a newer one applied, or its workspace was removed meanwhile. */
+  let listSeq = 0
+  let appliedSeq = 0
+  let pendingLists = 0
+  /** Path to the `listSeq` at its removal; a list started no later than that must not restore it. */
+  const removedAt = new Map()
   const inFlight = new Set()
   const writer = { host: hostName, pid }
 
@@ -358,10 +364,22 @@ export function createDispatcher({
 
   /** Lists Orca's workspaces and adds this machine's to the launch hook's map. */
   async function listWorkspaces() {
-    const result = await call('workspace.list', {})
-    listed = { at: clock.now(), workspaces: result?.workspaces ?? [] }
+    const seq = ++listSeq
+    pendingLists++
+    let result
+    try {
+      result = await call('workspace.list', {})
+    } finally {
+      pendingLists--
+    }
+    // A newer response already applied: this snapshot predates it and would overwrite its state.
+    if (seq < appliedSeq) return listed
+    appliedSeq = seq
+    const rows = (result?.workspaces ?? []).filter((w) => !(removedAt.get(w?.path) >= seq))
+    if (pendingLists === 0) removedAt.clear()
+    listed = { at: clock.now(), workspaces: rows }
     const ids = new Set()
-    for (const row of listed.workspaces)
+    for (const row of rows)
       if (row?.id && row.path && (!row.hostId || row.hostId === 'local')) {
         guardPaths.set(row.id, row.path)
         ids.add(row.id)
@@ -728,6 +746,7 @@ export function createDispatcher({
       await forget(workspaceId)
     }
     if (path) {
+      removedAt.set(path, listSeq)
       // Every id this path went by: an identity id from `workspace.list` as well as the event's.
       for (const [id, p] of [...guardPaths]) if (p === path) guardPaths.delete(id)
       let changed = false
