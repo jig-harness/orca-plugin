@@ -4,15 +4,20 @@
   "execution": "trusted-worker",
   "id": "jig",
   "name": "Jig",
-  "version": "0.1.0",
-  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, and shows what the tick did.",
+  "version": "0.2.0",
+  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, and refuses agent launches into a worktree jig gc is removing.",
   "repository": "https://github.com/jig-harness/orca-plugin",
   "license": "MIT",
-  "engines": { "orca": ">=1.4.246" },
+  "engines": { "orca": ">=1.4.248" },
   "pluginApi": 1,
   "main": "main.mjs",
   "contributes": {
-    "events": [{ "on": "agent.status.changed" }, { "on": "workspace.created" }],
+    "events": [
+      { "on": "agent.status.changed" },
+      { "on": "workspace.created" },
+      { "on": "workspace.removed" }
+    ],
+    "hooks": [{ "event": "agent.launch.before" }],
     "settings": [
       {
         "key": "jigCommand",
@@ -21,6 +26,14 @@
         "type": "string",
         "default": "",
         "placeholder": "bun --no-env-file --config=<plugin>/dispatch/bunfig.toml <plugin>/jig.ts"
+      },
+      {
+        "key": "guardDirectory",
+        "title": "Launch guard directory",
+        "description": "Where Jig's launch guard record lives: gc's admissions, this plugin's launch markers and its heartbeat. Set it only when Jig uses another directory; it must name the one Jig uses. Empty: .local/state/jig/orca-guard under the home directory, on every platform.",
+        "type": "string",
+        "default": "",
+        "placeholder": "/home/me/.local/state/jig/orca-guard"
       }
     ]
   },
