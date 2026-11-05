@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict'
 import * as realFs from 'node:fs'
+import process from 'node:process'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import {
   GUARD_HEARTBEAT_MS,
+  KILL_GRACE_MS,
   LINE_READ_DEADLINE_MS,
   LINE_REFRESH_MS,
   LOCK_HELD_RETRIES,
@@ -15,7 +17,9 @@ import {
   defaultGuardDirectory,
   guardKey,
   mainCheckout,
+  lineStatus,
   receiptLine,
+  runProgram,
   splitCommand,
   statusText,
   wakesDispatcher
@@ -952,6 +956,50 @@ describe('the status bar', () => {
     await h.settle()
     const read = h.runs.findIndex((argv) => argv.includes('line'))
     assert.equal(h.runOptions[read].timeoutMs, 30_000)
+  })
+
+  test('a program that ignores SIGTERM is killed and reaped within the termination bound', { skip: process.platform === 'win32' }, async () => {
+    const started = Date.now()
+    const result = await runProgram(
+      [process.execPath, '-e', "process.on('SIGTERM', () => {}); setInterval(() => {}, 1000)"],
+      { timeoutMs: 200, env: process.env, platform: process.platform }
+    )
+    assert.match(result.error.message, /ran past/)
+    assert.ok(Date.now() - started < 200 + 2 * KILL_GRACE_MS + 2000, 'settled within the bound')
+    assert.notEqual(result.code, 0)
+  })
+
+  test('a runner error wins over a zero exit and healthy-looking output', () => {
+    const read = {
+      code: 0,
+      stdout: JSON.stringify(lineAnswer()),
+      stderr: '',
+      error: new Error('printed more than 4194304 bytes')
+    }
+    const item = lineStatus(read, { intervalMs: 300_000, now: 0 })
+    assert.equal(item.text, 'Jig line unreadable')
+    assert.match(item.tooltip, /printed more than/)
+  })
+
+  test('a line with no readable finish time is unreadable, not healthy', () => {
+    for (const finishedAt of ['invalid', undefined]) {
+      const read = printed(lineAnswer({ finishedAt }))()
+      const item = lineStatus(read, { intervalMs: 300_000, now: Date.now() })
+      assert.equal(item.text, 'Jig line unreadable')
+      assert.equal(item.tone, 'danger')
+    }
+  })
+
+  test('after dispose no read is published and none is started', async () => {
+    const h = harness({ statusBar: true, holdLines: true })
+    h.dispatcher.startStatusBar()
+    await new Promise((resolve) => setImmediate(resolve))
+    h.dispatcher.refreshLine()
+    h.dispatcher.dispose()
+    h.releaseLine()
+    for (let i = 0; i < 5; i++) await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(h.lineReads().length, 1, 'the queued refresh does not start another read')
+    assert.equal(h.items.length, 0, 'the finished read is not published')
   })
 
   test('an Orca without statusBar.update reads nothing', async () => {

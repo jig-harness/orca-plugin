@@ -35,6 +35,8 @@ export const LINE_REFRESH_MS = 60_000
 
 /** How long one read of the line may run. */
 export const LINE_READ_DEADLINE_MS = 30_000
+/** How long a stopped program has to close after SIGTERM, and again after SIGKILL. */
+export const KILL_GRACE_MS = 2_000
 
 /** The dispatch interval the overdue check assumes when the line carries none, in minutes. */
 export const DEFAULT_DISPATCH_INTERVAL_MINUTES = 5
@@ -193,7 +195,7 @@ export function statusText({ ready = null, needs, overdue = false }) {
  * program's result; `intervalMs` the setting's interval, used when the line carries none.
  */
 export function lineStatus(read, { intervalMs, now }) {
-  if (read.error && read.code === null) {
+  if (read.error) {
     const why = read.error.code === 'ENOENT' ? 'the jig command was not found' : read.error.message
     return { text: 'Jig line unreadable', tone: 'danger', icon: 'error', tooltip: `Jig: ${why}` }
   }
@@ -237,8 +239,15 @@ export function lineStatus(read, { intervalMs, now }) {
   const interval = Number.isFinite(line.intervalMs) && line.intervalMs > 0 ? line.intervalMs : intervalMs
   const clockNow = Date.parse(value.now)
   const at = Date.parse(line.finishedAt)
+  if (!Number.isFinite(at))
+    return {
+      text: 'Jig line unreadable',
+      tone: 'danger',
+      icon: 'error',
+      tooltip: 'Jig: the line carries no readable finish time, so its age is unknown.'
+    }
   const age = (Number.isFinite(clockNow) ? clockNow : now) - at
-  const overdue = Number.isFinite(at) && age > 2 * interval
+  const overdue = age > 2 * interval
   const minutes = (ms) => `${Math.round(ms / 60_000)} min`
   return {
     text: statusText({ ready, needs, overdue }),
@@ -325,15 +334,26 @@ export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, 
     let size = 0
     let done = false
     let stopped = null
+    let killer = null
+    const signal = (name) => {
+      try {
+        if (platform === 'win32') child.kill()
+        else process.kill(-child.pid, name)
+      } catch {
+        try {
+          child.kill(name)
+        } catch {}
+      }
+    }
     const stop = (why) => {
       if (stopped) return
       stopped = why
-      try {
-        if (platform === 'win32') child.kill()
-        else process.kill(-child.pid, 'SIGTERM')
-      } catch {
-        child.kill()
-      }
+      signal('SIGTERM')
+      // A program that ignores SIGTERM is killed, and given up on if it still does not close.
+      killer = setTimeout(() => {
+        signal('SIGKILL')
+        killer = setTimeout(() => finish(null), KILL_GRACE_MS)
+      }, KILL_GRACE_MS)
     }
     const deadline = setTimeout(() => stop(`ran past ${Math.round(timeoutMs / 1000)}s`), timeoutMs)
     for (const stream of ['stdout', 'stderr']) {
@@ -347,6 +367,7 @@ export function runProgram(argv, { timeoutMs, maxBytes = 16 * 1024 * 1024, env, 
       if (done) return
       done = true
       clearTimeout(deadline)
+      clearTimeout(killer)
       settle({
         code,
         stdout: Buffer.concat(out.stdout).toString('utf8'),
@@ -395,7 +416,7 @@ export function createDispatcher({
   let loaded = null
   let listed = { at: -Infinity, workspaces: [] }
   let guardTimer = null
-  const line = { reading: false, again: false, timer: null, shown: null }
+  const line = { reading: false, again: false, timer: null, shown: null, disposed: false }
   const inFlight = new Set()
   const writer = { host: hostName, pid }
 
@@ -718,8 +739,8 @@ export function createDispatcher({
     return DEFAULT_DISPATCH_INTERVAL_MINUTES * 60_000
   }
 
-  /** Runs `jig dispatch line --json`, settling at the deadline even if the program has not. */
-  async function readLine() {
+  /** Resolves the command, runs `jig dispatch line --json` and reads the settings. */
+  async function readLineOnce() {
     let command
     try {
       command = await jigCommand()
@@ -727,24 +748,35 @@ export function createDispatcher({
       const why = error instanceof JigCommandError ? error.message : String(error?.message)
       return { text: 'Jig not found', tone: 'danger', icon: 'error', tooltip: `Jig: ${why}` }
     }
+    const read = await run([...command, 'dispatch', 'line', '--json'], {
+      timeoutMs: LINE_READ_DEADLINE_MS,
+      maxBytes: 4 * 1024 * 1024,
+      env,
+      platform
+    })
+    return lineStatus(read, { intervalMs: await settingIntervalMs(), now: clock.now() })
+  }
+
+  /** The whole read, command resolution and settings included, settling at the deadline. */
+  async function readLine() {
     let timer = null
     const deadline = new Promise((settle) => {
       timer = clock.setTimeout(
-        () => settle({ code: null, stdout: '', stderr: '', error: new Error(`the line read ran past ${LINE_READ_DEADLINE_MS / 1000}s`) }),
+        () =>
+          settle(
+            lineStatus(
+              { code: null, stdout: '', stderr: '', error: new Error(`the line read ran past ${LINE_READ_DEADLINE_MS / 1000}s`) },
+              { intervalMs: 0, now: clock.now() }
+            )
+          ),
         LINE_READ_DEADLINE_MS
       )
     })
-    const read = await Promise.race([
-      run([...command, 'dispatch', 'line', '--json'], {
-        timeoutMs: LINE_READ_DEADLINE_MS,
-        maxBytes: 4 * 1024 * 1024,
-        env,
-        platform
-      }),
-      deadline
-    ])
-    clock.clearTimeout(timer)
-    return lineStatus(read, { intervalMs: await settingIntervalMs(), now: clock.now() })
+    try {
+      return await Promise.race([readLineOnce(), deadline])
+    } finally {
+      clock.clearTimeout(timer)
+    }
   }
 
   /** Shows `item` when it differs from what is shown; logs each change once, never each read. */
@@ -766,7 +798,7 @@ export function createDispatcher({
    * more read after it, so the item ends on what the newest tick wrote.
    */
   function refreshLine() {
-    if (!host.has?.('statusBar.update')) return
+    if (line.disposed || !host.has?.('statusBar.update')) return
     if (line.reading) {
       line.again = true
       return
@@ -774,7 +806,7 @@ export function createDispatcher({
     line.reading = true
     track(
       readLine()
-        .then(show)
+        .then((item) => (line.disposed ? undefined : show(item)))
         .catch((error) => log(`status bar read failed: ${error?.stack ?? error}`))
         .finally(() => {
           line.reading = false
@@ -788,8 +820,9 @@ export function createDispatcher({
 
   /** Reads the line now and every `LINE_REFRESH_MS`. */
   function startStatusBar() {
-    if (line.timer || !host.has?.('statusBar.update')) return
+    if (line.disposed || line.timer || !host.has?.('statusBar.update')) return
     const beat = () => {
+      if (line.disposed) return
       refreshLine()
       line.timer = clock.setTimeout(beat, LINE_REFRESH_MS)
     }
@@ -917,6 +950,8 @@ export function createDispatcher({
       for (const s of repos.values()) if (s.timer) clock.clearTimeout(s.timer)
       if (guardTimer) clock.clearTimeout(guardTimer)
       guardTimer = null
+      line.disposed = true
+      line.again = false
       if (line.timer) clock.clearTimeout(line.timer)
       line.timer = null
     }

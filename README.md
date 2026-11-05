@@ -104,7 +104,7 @@ One status bar item shows what the dispatch line waits on, from
 | `Jig not found` | The Jig command cannot be resolved; the tooltip says why. |
 
 It reads the line when the plugin starts, after every tick the plugin runs,
-and every minute; never two reads at once, each stopped after 30 seconds.
+and every minute; never two reads at once, each stopped after 30 seconds, finding the command and reading the settings included.
 A change of the item is logged once, not on every read. Pressing the item
 opens nothing yet. An Orca without `statusBar.update`, such as orcad, reads
 nothing.
