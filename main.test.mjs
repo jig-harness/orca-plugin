@@ -713,6 +713,16 @@ describe('workspace.removed', () => {
     assert.equal(h.dispatcher.onLaunchBefore(launch()), undefined, 'the hook no longer knows it')
   })
 
+  test('forgets every id the path went by, not only the event\'s', async () => {
+    const h = await guardedHarness()
+    h.dispatcher.onWorkspaceCreated({ workspaceId: WT_ID, kind: 'worktree', path: WORKTREE })
+    await h.settle()
+    await h.dispatcher.onWorkspaceRemoved({ workspaceId: 'identity-id', kind: 'worktree', path: WORKTREE })
+    await h.settle()
+    h.fs.files.set(ADMISSION, '')
+    assert.equal(h.dispatcher.onLaunchBefore(launch()), undefined, 'the hook no longer knows the path')
+  })
+
   test('a workspace whose repository was never resolved wakes nothing', async () => {
     const h = await guardedHarness()
     await h.dispatcher.onWorkspaceRemoved({ workspaceId: WT_ID, kind: 'worktree', path: WORKTREE })
