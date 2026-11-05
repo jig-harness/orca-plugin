@@ -138,6 +138,24 @@ nothing.
   ([Orca's remote servers page](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/remote-servers.mdx)).
   A launch from a paired client is decided by the server's plugins, so the
   server must run this one for the guard to see those launches.
+
+  For a server run as a systemd user service, set the variable in a
+  drop-in rather than in the unit, which `orca serve service install`
+  rewrites on every upgrade:
+
+  ```ini
+  # ~/.config/systemd/user/orca-serve.service.d/plugin-runtime.conf
+  [Service]
+  Environment=ORCA_SERVE_RUNTIME=electron
+  ```
+
+  Then `systemctl --user daemon-reload` and restart the service. It took
+  effect when `orca plugin list` lists plugins instead of answering "Plugin
+  service is not available on this runtime". The desktop app's runtime
+  holds more memory than orcad; a packaged macOS app's `orca serve` already
+  uses it. The restart keeps terminals, which live in Orca's terminal
+  daemon, but stops any session whose processes run in the service itself,
+  such as an Orca chat session.
 - **The `jig` plugin**, installed for Claude Code or Codex, with **Bun** on
   the `PATH` Orca starts with ([Jig's plugin
   README](https://github.com/jig-harness/jig/blob/main/plugin/README.md)
