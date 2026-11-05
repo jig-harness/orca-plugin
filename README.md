@@ -2,8 +2,9 @@
 
 An [Orca](https://www.onorca.dev) plugin that wakes
 [Jig](https://github.com/jig-harness/jig)'s dispatcher when an agent in Orca
-stops for input or finishes, shows what the dispatcher did, and refuses to
-start an agent in a worktree `jig gc` is removing.
+stops for input or finishes, shows what the dispatcher did, refuses to
+start an agent in a worktree `jig gc` is removing, and shows the dispatch
+line in Orca's status bar.
 
 Jig's dispatcher is a program that looks at a repository's tracker, its
 pull requests and the agent sessions running on this machine, and starts
@@ -84,6 +85,30 @@ What it never sees, which gc's own checks still cover:
 - a saved session Orca restores when it starts;
 - launches on an Orca running on its Node server, orcad (`orca serve`
   without `ORCA_SERVE_RUNTIME=electron`), which loads no plugins at all.
+
+## The status bar
+
+One status bar item shows what the dispatch line waits on, from
+`jig dispatch line --json`
+([Jig's plugin README](https://github.com/jig-harness/jig/blob/main/plugin/README.md),
+"The line as JSON"), run with the same Jig command as the ticks:
+
+| The item says | When |
+|---|---|
+| `Jig 2 need you` | The newest tick's line has two needs (the line counts each once across repositories). |
+| `Jig 1 ready · 2 need you` | The same, once the line carries a ready-to-merge list; today's line (version 1) has none, so no ready count is shown. |
+| `Jig tick overdue` | The newest tick finished more than twice the dispatch interval ago; its needs follow when there are any. The interval is the line's own, else the `dispatchIntervalMinutes` setting. |
+| `Jig no tick yet` | No tick has written a line, or there is no state database. |
+| `Jig line unreadable` | The command exited 1 (its standard error line is the tooltip), printed no answer, a line of a version this plugin does not read, or ran past 30 seconds. |
+| `Jig too old for the status bar` | The command line was refused (exit 2): the installed jig has no `dispatch line`. |
+| `Jig not found` | The Jig command cannot be resolved; the tooltip says why. |
+
+It reads the line when the plugin starts, after every tick the plugin runs,
+and every minute; never two reads at once, each stopped after 30 seconds.
+A change of the item is logged once, not on every read. Pressing the item
+opens nothing yet. An Orca without `statusBar.update`, such as orcad, reads
+nothing.
+
 ## What it does not do
 
 - It holds none of Jig's rules. What a tick starts, for which repository and
@@ -94,10 +119,12 @@ What it never sees, which gc's own checks still cover:
   channel.
 - It does not replace the dispatcher's timer: the timer still catches what
   no status change announces, such as a merge or a new tracker item.
-- It has no panel. Jig's dashboard stays `jig dispatch dashboard`.
+- It has no panel. Jig's dashboard stays `jig dispatch dashboard`; the
+  status bar item is a count, not a view.
 - It runs ticks only for workspaces on this machine. A workspace on an SSH
   or WSL host is logged and skipped.
-- It contributes no skills to Orca, and only the one hook above.
+- It contributes no skills to Orca, only the one hook above and the one
+  status bar item.
 
 ## Requirements
 
@@ -161,6 +188,10 @@ starts plugins with, or when the tick needs an environment variable: Orca
 gives a plugin worker only `PATH`, `HOME`, the locale and the temporary
 directory, so, for example,
 `env CLAUDE_CONFIG_DIR=/home/me/.claude-work bun --no-env-file --config=...`.
+
+**Dispatch interval** (`dispatchIntervalMinutes`, default 5): how often
+Jig's dispatch timer ticks, for a line that does not carry its interval. The
+status bar says the tick is overdue past twice this.
 
 **Launch guard directory** (`guardDirectory`): where the launch guard record
 lives. Left empty, it is `.local/state/jig/orca-guard` under the home

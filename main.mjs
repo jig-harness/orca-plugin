@@ -1,7 +1,8 @@
 // The jig plugin's worker. Orca starts it with the user's permissions and hands it agent and
 // workspace events. When an agent stops for input or finishes in a repository that uses Jig, it
 // runs one tick of Jig's dispatcher for that repository and shows what the tick did. It also
-// guards agent launches: a launch into a worktree `jig gc` is removing is refused. Jig's rules
+// guards agent launches: a launch into a worktree `jig gc` is removing is refused, and shows the
+// dispatch line's counts in the status bar from `jig dispatch line --json`. Jig's rules
 // stay in Jig: this file only decides when to wake the dispatcher and which repository to name,
 // and the guard follows the launch guard record in Jig's plugin/gc/README.md.
 import { spawn } from 'node:child_process'
@@ -29,10 +30,24 @@ export const GUARD_DENY_REASON = 'jig gc is removing this worktree'
 /** A tick that finds the dispatcher's lock held is tried again this many times, a window apart. */
 export const LOCK_HELD_RETRIES = 5
 
+/** How often the status bar re-reads the line when no tick asked it to. */
+export const LINE_REFRESH_MS = 60_000
+
+/** How long one read of the line may run. */
+export const LINE_READ_DEADLINE_MS = 30_000
+
+/** The dispatch interval the overdue check assumes when the line carries none, in minutes. */
+export const DEFAULT_DISPATCH_INTERVAL_MINUTES = 5
+
+/** The status bar item, as `contributes.statusBarItems` names it. */
+export const STATUS_ITEM_ID = 'line'
+
 const LOCK_HELD_EXIT = 3
+const REFUSED_EXIT = 2
 const PLUGIN_ID = 'jig@jig'
 const SETTING_KEY = 'jigCommand'
 const GUARD_SETTING_KEY = 'guardDirectory'
+const INTERVAL_SETTING_KEY = 'dispatchIntervalMinutes'
 const STORAGE_KEY = 'workspaces'
 const REMEMBERED_WORKSPACES = 200
 const LIST_CACHE_MS = 30_000
@@ -161,6 +176,82 @@ export function receiptDetail(receipt) {
   for (const a of receipt?.accountsNotAdmitted ?? [])
     lines.push(`  account ${a.account} not admitted: ${a.reason}`)
   return lines
+}
+
+/** The item's text: `Jig 2 need you`, `Jig 1 ready · 2 need you`, `Jig tick overdue`. */
+export function statusText({ ready = null, needs, overdue = false }) {
+  const counts = [
+    ...(ready ? [`${ready} ready`] : []),
+    ...(needs || !overdue ? [`${needs} need you`] : [])
+  ]
+  return overdue ? ['Jig tick overdue', ...counts].join(' · ') : `Jig ${counts.join(' · ')}`
+}
+
+/**
+ * What the status bar shows for one read of `jig dispatch line --json`, the answer the
+ * dashboard's `GET /state` gives (Jig's plugin/README.md, "The line as JSON"). `read` is the
+ * program's result; `intervalMs` the setting's interval, used when the line carries none.
+ */
+export function lineStatus(read, { intervalMs, now }) {
+  if (read.error && read.code === null) {
+    const why = read.error.code === 'ENOENT' ? 'the jig command was not found' : read.error.message
+    return { text: 'Jig line unreadable', tone: 'danger', icon: 'error', tooltip: `Jig: ${why}` }
+  }
+  if (read.code === REFUSED_EXIT)
+    return {
+      text: 'Jig too old for the status bar',
+      tone: 'neutral',
+      icon: 'info',
+      tooltip: 'This jig has no `jig dispatch line`; update the jig plugin to see the line here.'
+    }
+  let answer = null
+  try {
+    answer = read.code === 0 ? JSON.parse(read.stdout) : null
+  } catch {
+    answer = null
+  }
+  const value = answer?.ok === true ? answer.value : null
+  const line = value?.line
+  if (!value || line === undefined) {
+    const why = firstLine(read.stderr) || (read.code === 0 ? 'it did not print the line' : `exit ${read.code}`)
+    return { text: 'Jig line unreadable', tone: 'danger', icon: 'error', tooltip: `Jig: ${why}` }
+  }
+  if (line === null)
+    return {
+      text: 'Jig no tick yet',
+      tone: 'neutral',
+      icon: 'activity',
+      tooltip: 'Jig: no dispatch tick has written the line yet.'
+    }
+  if (line?.version !== 1 || !Array.isArray(line.needs))
+    return {
+      text: 'Jig line unreadable',
+      tone: 'danger',
+      icon: 'error',
+      tooltip: `Jig: the line is version ${line?.version ?? '?'}, which this plugin does not read; update it.`
+    }
+  // The line de-duplicates its needs across repositories. Version 1 carries no ready list, so
+  // ready-to-merge is not shown rather than guessed from the sessions or the queue.
+  const needs = line.needs.length
+  const ready = null
+  const interval = Number.isFinite(line.intervalMs) && line.intervalMs > 0 ? line.intervalMs : intervalMs
+  const clockNow = Date.parse(value.now)
+  const at = Date.parse(line.finishedAt)
+  const age = (Number.isFinite(clockNow) ? clockNow : now) - at
+  const overdue = Number.isFinite(at) && age > 2 * interval
+  const minutes = (ms) => `${Math.round(ms / 60_000)} min`
+  return {
+    text: statusText({ ready, needs, overdue }),
+    tone: overdue ? 'danger' : needs ? 'warning' : 'neutral',
+    icon: overdue ? 'warning' : needs ? 'bell' : 'check',
+    tooltip: [
+      `Jig: tick ${line.runId} finished ${line.finishedAt}`,
+      overdue ? `, ${minutes(age)} ago, past twice the ${minutes(interval)} interval` : '',
+      `. ${needs} need you`,
+      ready === null ? '' : `, ${ready} ready to merge`,
+      '.'
+    ].join('')
+  }
 }
 
 /**
@@ -304,6 +395,7 @@ export function createDispatcher({
   let loaded = null
   let listed = { at: -Infinity, workspaces: [] }
   let guardTimer = null
+  const line = { reading: false, again: false, timer: null, shown: null }
   const inFlight = new Set()
   const writer = { host: hostName, pid }
 
@@ -614,6 +706,96 @@ export function createDispatcher({
     return false
   }
 
+  /** The dispatch interval the setting names, for a line that carries none. */
+  async function settingIntervalMs() {
+    try {
+      const result = await call('settings.get', {})
+      const minutes = Number(result?.settings?.[INTERVAL_SETTING_KEY])
+      if (Number.isFinite(minutes) && minutes > 0) return minutes * 60_000
+    } catch (error) {
+      log(`could not read the ${INTERVAL_SETTING_KEY} setting: ${error.message}`)
+    }
+    return DEFAULT_DISPATCH_INTERVAL_MINUTES * 60_000
+  }
+
+  /** Runs `jig dispatch line --json`, settling at the deadline even if the program has not. */
+  async function readLine() {
+    let command
+    try {
+      command = await jigCommand()
+    } catch (error) {
+      const why = error instanceof JigCommandError ? error.message : String(error?.message)
+      return { text: 'Jig not found', tone: 'danger', icon: 'error', tooltip: `Jig: ${why}` }
+    }
+    let timer = null
+    const deadline = new Promise((settle) => {
+      timer = clock.setTimeout(
+        () => settle({ code: null, stdout: '', stderr: '', error: new Error(`the line read ran past ${LINE_READ_DEADLINE_MS / 1000}s`) }),
+        LINE_READ_DEADLINE_MS
+      )
+    })
+    const read = await Promise.race([
+      run([...command, 'dispatch', 'line', '--json'], {
+        timeoutMs: LINE_READ_DEADLINE_MS,
+        maxBytes: 4 * 1024 * 1024,
+        env,
+        platform
+      }),
+      deadline
+    ])
+    clock.clearTimeout(timer)
+    return lineStatus(read, { intervalMs: await settingIntervalMs(), now: clock.now() })
+  }
+
+  /** Shows `item` when it differs from what is shown; logs each change once, never each read. */
+  async function show(item) {
+    const key = JSON.stringify(item)
+    if (key === line.shown) return
+    line.shown = key
+    log(`status bar: ${item.text} (${item.tooltip})`)
+    try {
+      await call('statusBar.update', { id: STATUS_ITEM_ID, ...item, visible: true })
+    } catch (error) {
+      line.shown = null
+      log(`could not update the status bar: ${error.message}`)
+    }
+  }
+
+  /**
+   * Reads the line and shows it. One read at a time: a request while one runs makes exactly one
+   * more read after it, so the item ends on what the newest tick wrote.
+   */
+  function refreshLine() {
+    if (!host.has?.('statusBar.update')) return
+    if (line.reading) {
+      line.again = true
+      return
+    }
+    line.reading = true
+    track(
+      readLine()
+        .then(show)
+        .catch((error) => log(`status bar read failed: ${error?.stack ?? error}`))
+        .finally(() => {
+          line.reading = false
+          if (line.again) {
+            line.again = false
+            refreshLine()
+          }
+        })
+    )
+  }
+
+  /** Reads the line now and every `LINE_REFRESH_MS`. */
+  function startStatusBar() {
+    if (line.timer || !host.has?.('statusBar.update')) return
+    const beat = () => {
+      refreshLine()
+      line.timer = clock.setTimeout(beat, LINE_REFRESH_MS)
+    }
+    beat()
+  }
+
   function state(repo) {
     let s = repos.get(repo)
     if (!s) {
@@ -658,6 +840,7 @@ export function createDispatcher({
         })
         .then((lockHeld) => {
           s.running = false
+          refreshLine()
           if (lockHeld && s.lockRetries < LOCK_HELD_RETRIES) {
             s.lockRetries += 1
             s.pending = true
@@ -723,6 +906,8 @@ export function createDispatcher({
     onWorkspaceRemoved: guarded('workspace.removed', handleWorkspaceRemoved),
     onLaunchBefore: guardLaunch,
     startGuard,
+    startStatusBar,
+    refreshLine,
     requestTick,
     /** Resolves once every handler and tick started so far has settled (for tests). */
     async settled() {
@@ -732,6 +917,8 @@ export function createDispatcher({
       for (const s of repos.values()) if (s.timer) clock.clearTimeout(s.timer)
       if (guardTimer) clock.clearTimeout(guardTimer)
       guardTimer = null
+      if (line.timer) clock.clearTimeout(line.timer)
+      line.timer = null
     }
   }
 }
@@ -756,6 +943,7 @@ export default function activate(orca) {
   // Synchronous: the guard decides before any awaited call, so Orca's 2 s limit is never at stake.
   orca.hooks.on('agent.launch.before', (event) => active.onLaunchBefore(event))
   active.startGuard()
+  active.startStatusBar()
   // Handlers return at once: Orca waits on them, and a tick can take minutes.
   orca.events.on('agent.status.changed', (payload) => {
     active.onAgentStatusChanged(payload)

@@ -4,8 +4,8 @@
   "execution": "trusted-worker",
   "id": "jig",
   "name": "Jig",
-  "version": "0.2.0",
-  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, and refuses agent launches into a worktree jig gc is removing.",
+  "version": "0.3.0",
+  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, refuses agent launches into a worktree jig gc is removing, and shows the dispatch line in the status bar.",
   "repository": "https://github.com/jig-harness/orca-plugin",
   "license": "MIT",
   "engines": { "orca": ">=1.4.248" },
@@ -34,6 +34,22 @@
         "type": "string",
         "default": "",
         "placeholder": "/home/me/.local/state/jig/orca-guard"
+      },
+      {
+        "key": "dispatchIntervalMinutes",
+        "title": "Dispatch interval (minutes)",
+        "description": "How often Jig's dispatch timer ticks, for a line that does not say. The status bar says the tick is overdue when the newest is older than twice this.",
+        "type": "number",
+        "default": 5,
+        "minimum": 1
+      }
+    ],
+    "statusBarItems": [
+      {
+        "id": "line",
+        "text": "Jig",
+        "icon": "activity",
+        "tooltip": "Jig's dispatch line: what needs you, read from jig dispatch line --json."
       }
     ]
   },
