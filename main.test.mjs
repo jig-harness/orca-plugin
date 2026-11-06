@@ -462,6 +462,27 @@ describe('per-repository coalescing', () => {
     assert.equal(h.ticks().length, 2)
   })
 
+  test('after dispose a running tick finishes and schedules nothing more', async () => {
+    const h = harness({ holdTicks: true })
+    await created(h)
+    await h.dispatcher.onAgentStatusChanged(status('done'))
+    await new Promise((resolve) => setImmediate(resolve))
+    await h.dispatcher.onAgentStatusChanged(status('done'))
+    assert.equal(h.ticks().length, 1)
+
+    h.dispatcher.dispose()
+    h.release()
+    await h.settle()
+    h.clock.advance(TICK_WINDOW_MS * 3)
+    await h.settle()
+    assert.equal(h.ticks().length, 1, 'the pending request did not start a tick')
+    assert.equal(h.notifications.length, 1, 'the running tick still reported')
+
+    h.dispatcher.requestTick(REPO)
+    await h.settle()
+    assert.equal(h.ticks().length, 1, 'no request is honoured after dispose')
+  })
+
   test('repositories are coalesced separately', async () => {
     const other = '/work/other'
     const h = harness({
@@ -548,6 +569,39 @@ describe('the receipt path', () => {
     await h.settle()
     assert.deepEqual(h.notifications, [
       { title: 'Jig dispatch failed', body: `${REPO}: jig dispatch --apply needs the machine file` }
+    ])
+  })
+
+  test('a runner error is a failure even when the output holds a receipt', async () => {
+    const h = harness({
+      tickResult: () => ({
+        code: null,
+        stdout: JSON.stringify(receipt()),
+        stderr: '',
+        error: new Error('timed out after 21600000ms')
+      })
+    })
+    h.dispatcher.requestTick(REPO)
+    await h.settle()
+    assert.deepEqual(h.notifications, [
+      { title: 'Jig dispatch failed', body: `${REPO}: timed out after 21600000ms` }
+    ])
+  })
+
+  test('a runner error beside the lock-held exit code is a failure, not lock contention', async () => {
+    const h = harness({
+      tickResult: () => ({
+        code: 3,
+        stdout: '',
+        stderr: 'lock held',
+        error: new Error('timed out after 21600000ms')
+      })
+    })
+    h.dispatcher.requestTick(REPO)
+    await h.settle()
+    assert.equal(h.ticks().length, 1)
+    assert.deepEqual(h.notifications, [
+      { title: 'Jig dispatch failed', body: `${REPO}: timed out after 21600000ms` }
     ])
   })
 
