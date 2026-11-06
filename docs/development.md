@@ -18,7 +18,7 @@ node --test
 ```
 
 The tests run the worker's logic against a fake Orca, a fake clock, a fake
-process runner and a fake file system, and one test against real files. CI
+process runner and a fake file system, and a test against real files. CI
 runs them on Node 20 and 24.
 
 `orca plugin test .` runs the same suite through Orca, with Orca's own Node

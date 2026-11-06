@@ -68,7 +68,7 @@ One status bar item shows what the dispatch line waits on, from
 | The item says | When |
 |---|---|
 | `Jig 2 need you` | The newest tick's line has two needs (the line counts each once across repositories). |
-| `Jig 1 ready · 2 need you` | The same, once the line carries a ready-to-merge list; today's line (version 1) has none, so no ready count is shown. |
+| `Jig 1 ready · 2 need you` | The same, once the line carries a ready-to-merge list; today's line (version 1) has none, so no ready count is shown, and a newer version needs a plugin update before it can be shown. |
 | `Jig tick overdue` | The newest tick finished more than twice the dispatch interval ago; its needs follow when there are any. The interval is the line's own, else the `dispatchIntervalMinutes` setting. |
 | `Jig no tick yet` | No tick has written a line, or there is no state database. |
 | `Jig line unreadable` | The command exited 1 (its standard error line is the tooltip), printed no answer, a line of a version this plugin does not read, or ran past 30 seconds. |

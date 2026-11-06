@@ -30,7 +30,7 @@ This repository is an [Orca](https://www.onorca.dev) plugin for
 
 ## Checks
 
-- `node --test`: the tests (also the gates command in `.config/jig.yaml`).
+- `node --test`: the tests (also run by `.github/workflows/validate.yml`).
 - `orca-ide plugin validate .` (`orca plugin validate .` off Linux): Orca's
   manifest checks.
 - `/jig:docs`: the frontmatter, dates and scars of the pages under `docs/`.

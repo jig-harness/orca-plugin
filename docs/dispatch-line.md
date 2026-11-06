@@ -22,7 +22,7 @@ does with each outcome. What each item text means to a person is in the
 The Jig command the ticks use (the `jigCommand` setting, else the installed
 `jig` plugin; see the [README](../README.md#the-settings)), followed by
 `dispatch line --json`, without a shell. One read at a time, stopped after 30
-seconds, with at most 4 MB of output read. It reads the line when the worker
+seconds, with at most 4 MiB of output read. It reads the line when the worker
 starts, after every tick the plugin runs, and every minute. An Orca without
 `statusBar.update`, such as orcad, reads nothing.
 
@@ -42,7 +42,8 @@ starts, after every tick the plugin runs, and every minute. An Orca without
 
 A tick is overdue when its age is more than twice the interval. Version 1
 carries no ready-to-merge list, so the plugin shows no ready count rather
-than guess one; once a version carries it, the item adds it.
+than guess one. It reads version 1 only, so a ready count needs a plugin
+update that reads the newer version.
 
 The line's contract changes in Jig first; this page and the reading code
 follow it in one pull request.

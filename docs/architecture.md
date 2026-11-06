@@ -11,8 +11,8 @@ description: The plugin's concerns, the workspace map they share, its timers, an
 The plugin is one Orca worker (`execution: trusted-worker`) with no panel
 and no runtime dependencies. Orca starts it once and calls its default
 export, `activate(orca)`, which builds the worker's logic with
-`createDispatcher` and connects it to three events, one hook and one status
-bar item. Because the plugin has a hook and a status bar item, Orca keeps the
+`createDispatcher` and connects it to the events it listens for, the launch
+hook and the status bar item. Because the plugin has a hook and a status bar item, Orca keeps the
 worker running while the plugin is enabled.
 
 The plugin decides nothing Jig decides. It says when to run a tick and for
@@ -44,9 +44,12 @@ folder. The plugin finds the folder in three places, in this order:
    storage (at most 200 workspaces), so it survives a restart of the worker;
 2. `workspace.list`, which answers for every workspace on this machine and
    which the plugin re-reads at most every 30 seconds for a status change;
-3. for the launch hook only, a map the plugin refreshes from
-   `workspace.list` on each event and every minute, because the hook may not
-   wait for a call.
+3. for the launch hook only, a map the plugin holds, because the hook may not wait for a call. It
+   reads `workspace.list` into the map when the worker starts, every minute
+   and after a workspace is created, and when a status change names an
+   unknown workspace and the last listing is more than 30 seconds old. A
+   removal only prunes the map and a launch never lists, so between those
+   moments the hook can meet a workspace the map does not know.
 
 It needs no capability beyond `workspace:read`. A workspace on an SSH or WSL
 host has no local folder; the plugin logs it and skips it.
