@@ -42,7 +42,7 @@ tag `v$ORCA_RELEASE` and `engines.orca` is exactly `>=$ORCA_RELEASE`.
 ## Contracts
 
 The `Contracts` workflow (`.github/workflows/contracts.yml`) checks the
-plugin against the two contracts it shares with Jig, using a Jig checkout
+plugin against the contracts it shares with Jig, using a Jig checkout
 pinned by `JIG_REF`. Bump that pin by hand, as you bump `ORCA_REF`.
 
 - `tests/contracts/guard-record.mjs` checks the launch guard record. The
@@ -51,8 +51,8 @@ pinned by `JIG_REF`. Bump that pin by hand, as you bump `ORCA_REF`.
   admission Jig's `admit` writes makes the hook refuse the launch.
 - `tests/contracts/dispatch-line.mjs` runs the pinned Jig's
   `jig dispatch line --json` in a fresh home, and checks that the plugin's
-  `lineStatus` reads what it prints. It checks three cases: no tick yet, a
-  fresh tick's needs, and an overdue tick.
+  `lineStatus` reads what it prints. It checks no tick yet, a fresh tick's
+  needs, and an overdue tick.
 
 Both run with Bun, which runs Jig's TypeScript, and need no install. They
 are not `*.test.mjs` files, so `node --test` skips them. To run them
