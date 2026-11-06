@@ -269,7 +269,7 @@ function headHtml(answer, nowMs) {
     <p class="title">${esc(title)}</p>
     <p class="sm mut">${esc(sub)}</p>${
       omitted > 0
-        ? `\n    <p class="sm warn" role="alert">${esc(`${omitted} of ${total} needs are left out because the line is too large to show; read them with the status bar or on the pull requests.`)}</p>`
+        ? `\n    <p class="sm warn" role="alert">${esc(`${omitted} of ${total} needs are left out because the line is too large to show; read them with jig dispatch dashboard or jig dispatch line --json.`)}</p>`
         : ''
     }
     <p class="sm tick${overdue ? ' overdue' : ' mut'}" title="${esc(`Tick ${line.runId}, finished ${line.finishedAt}`)}">${

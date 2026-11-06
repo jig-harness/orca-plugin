@@ -206,6 +206,10 @@ describe('the panel answer', () => {
     const served = await panelAnswer(kept(answer), idAt)
     assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
     assert.equal(served.state, 'line')
+    assert.equal(served.line.needs.length, 1)
+    assert.equal(served.line.needs[0].target, need.target)
+    assert.ok(served.line.needs[0].reason.length < 1_100_000)
+    assert.ok(!served.line.omitted)
   })
 
   test('many large needs leave the last out and say so', async () => {
