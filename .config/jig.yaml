@@ -1,0 +1,34 @@
+# Jig configuration for this repository: the values the Jig skills read.
+# Every field, its default and the skills that read it:
+# plugin/CONFIGURATION.md in the jig plugin.
+gates:
+  # The repository's complete local checks: the worker's tests. CI runs the
+  # same tests on Node 20 and 24, and Orca's manifest validator besides
+  # (.github/workflows/validate.yml).
+  command: node --test
+review:
+  bots: ["docomply-review[bot]"]
+  repo_slug: jig-harness/orca-plugin
+  # The AI reviewer posts its "AI review (majordomo)" check run from this app.
+  reviewer_app: docomply-review
+  reviewer_check_pattern: "^AI review \\(majordomo\\)$"
+issue_tracker:
+  # The plugin's work is the repository's own GitHub Issues.
+  adapter: github
+pull_requests:
+  # One pull request per change against main; a person merges.
+  stacking: none
+gc:
+  # The worktrees Orca opens for this repository, in the one root every
+  # clone on a machine uses. Relative roots resolve from the clone's primary
+  # checkout.
+  kinds: [tool-state, worktrees]
+  worktree_roots:
+    - ../../orca/workspaces/orca-plugin
+dispatch:
+  # The dispatcher's state on every pull request it manages, and a person's
+  # `jig:drive` and `jig:hold`. No identity, so no pickups; no follow-up
+  # command, so no post-merge pass. The labels must exist:
+  # `jig install dispatch --repo <clone> --yes`.
+  labels:
+    enabled: true
