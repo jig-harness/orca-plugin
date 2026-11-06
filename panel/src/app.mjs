@@ -1,67 +1,127 @@
-// The panel in Orca's frame: asks the worker for the line, draws the inbox, and answers its
-// buttons. The pull request opens through `orca.shell.openExternal`, which needs the click; the
-// workspace opens through the worker; the answer line is copied here. Drafts live only in this
-// page, so the panel stores nothing.
-import { answerKeys, answerText, draftKey, needKey, openableUrl, panelHtml } from './inbox.mjs'
+// The panel in Orca's frame: asks the worker for the line and the addresses, draws the inbox,
+// the address list and a thread, and answers their buttons. The pull request opens through
+// `orca.shell.openExternal`, which needs the click; the workspace opens through the worker; an
+// answer is sent by the worker through `jig send`, and shown as sent only once it says so.
+// Drafts live only in this page, so the panel stores nothing.
+import { addressListHtml, threadHtml } from './addresses.mjs'
+import { boxKey } from './answer.mjs'
+import { panelHtml } from './inbox.mjs'
+import { esc, openableUrl } from './util.mjs'
 
 /** How often the open panel reads again when no tick told it to. */
 const POLL_MS = 60_000
 /** The worker's read may run 30 s; the request waits a little longer. */
 const REQUEST_TIMEOUT_MS = 45_000
+/** One `jig ask` or `jig send` may run 50 s, and wait for one before it; Orca allows 120 s. */
+const ADDRESS_TIMEOUT_MS = 110_000
 
 const orca = window.orca
 const app = document.getElementById('app')
 
 const view = {
+  /** `inbox`, `addresses` or `thread`. */
+  tab: 'inbox',
   answer: null,
   /** `performance.now()` at the read, so the line's clock moves on with this page's. */
   readAt: 0,
+  list: null,
+  thread: null,
+  /** The address the thread view shows, and whether all of its thread was asked for. */
+  address: null,
+  all: false,
   drafts: new Map(),
+  /** Each answer box's step, by `boxKey`: review, sending, sent or failed. */
+  sends: new Map(),
   replying: new Set(),
   folds: new Map(),
   note: null,
   pending: false
 }
 
-const request = (name, input) => orca.plugin.request(name, input, { timeoutMs: REQUEST_TIMEOUT_MS })
+const request = (name, input, timeoutMs = REQUEST_TIMEOUT_MS) => orca.plugin.request(name, input, { timeoutMs })
+
+const workerSilent = (error) => `the worker did not answer (${error?.code ?? 'error'}: ${error?.message ?? error}).`
 
 function nowMs() {
   const said = Date.parse(view.answer?.now ?? '')
   return Number.isFinite(said) ? said + (performance.now() - view.readAt) : Date.now()
 }
 
+function bodyHtml() {
+  const options = { nowMs: nowMs(), drafts: view.drafts, sends: view.sends, note: view.note }
+  if (view.tab === 'addresses')
+    return view.list ? addressListHtml(view.list, options) : '<p class="sm mut pad">Reading the addresses…</p>'
+  if (view.tab === 'thread')
+    return view.thread && view.thread.address === view.address
+      ? threadHtml(view.thread, options)
+      : `<p class="sm mut pad">Reading the thread of <span class="m">${esc(view.address)}</span>…</p>`
+  return view.answer ? panelHtml(view.answer, { ...options, replying: view.replying }) : '<p class="sm mut pad">Reading the line…</p>'
+}
+
 function render() {
-  // A redraw would take the cursor out of a reply being typed; it waits for the box to lose focus.
+  // A redraw would take the cursor out of an answer being typed; it waits for the box to lose focus.
   if (document.activeElement?.tagName === 'TEXTAREA' && app.contains(document.activeElement)) {
     view.pending = true
     return
   }
   view.pending = false
-  if (!view.answer) return
+  for (const tab of document.querySelectorAll('.bar [data-tab]'))
+    tab.setAttribute('aria-pressed', String(tab.dataset.tab === (view.tab === 'thread' ? 'addresses' : view.tab)))
   for (const fold of app.querySelectorAll('details[data-fold]')) view.folds.set(fold.dataset.fold, fold.open)
-  app.innerHTML = panelHtml(view.answer, {
-    nowMs: nowMs(),
-    drafts: view.drafts,
-    replying: view.replying,
-    note: view.note
-  })
+  app.innerHTML = bodyHtml()
   for (const fold of app.querySelectorAll('details[data-fold]'))
     if (view.folds.has(fold.dataset.fold)) fold.open = view.folds.get(fold.dataset.fold)
 }
 
-async function load(fresh = false) {
+async function loadLine(fresh = false) {
   try {
-    const answer = await request('line.get', fresh ? { fresh: true } : {})
-    view.answer = answer
+    view.answer = await request('line.get', fresh ? { fresh: true } : {})
     view.readAt = performance.now()
   } catch (error) {
-    view.answer = { state: 'unreadable', why: `the worker did not answer (${error?.code ?? 'error'}: ${error?.message ?? error}).` }
+    view.answer = { state: 'unreadable', why: workerSilent(error) }
   }
   render()
 }
 
-function needOf(key) {
-  return view.answer?.line?.needs.find((n) => needKey(n) === key) ?? null
+async function loadList(fresh = false) {
+  try {
+    view.list = await request('addresses.list', fresh ? { fresh: true } : {}, ADDRESS_TIMEOUT_MS)
+  } catch (error) {
+    view.list = { state: 'unreadable', why: workerSilent(error), addresses: [] }
+  }
+  render()
+}
+
+async function loadThread(address) {
+  const all = view.all
+  let answer
+  try {
+    answer = await request('address.get', { address, all }, ADDRESS_TIMEOUT_MS)
+  } catch (error) {
+    answer = { state: 'unreadable', why: workerSilent(error), address }
+  }
+  // A thread asked for before the person moved on is not drawn over the one they opened.
+  if (view.address !== address || view.all !== all) return
+  view.thread = answer
+  render()
+}
+
+function show(tab) {
+  view.tab = tab
+  view.note = null
+  render()
+  if (tab === 'addresses') loadList()
+  if (tab === 'inbox') loadLine()
+}
+
+function openAddress(address) {
+  view.tab = 'thread'
+  view.address = address
+  view.all = false
+  view.thread = null
+  view.note = null
+  render()
+  loadThread(address)
 }
 
 /** Copies `text` the one way a frame allows: `execCommand` inside the click. */
@@ -85,6 +145,38 @@ function copy(text) {
 function say(note) {
   view.note = note
   render()
+}
+
+/** The review, send and edit steps of one answer box. */
+function answerStep(step, address, key) {
+  const k = boxKey(address, key)
+  if (step === 'edit') {
+    view.sends.delete(k)
+    return render()
+  }
+  if (step === 'review') {
+    const text = (view.drafts.get(k) ?? '').trim()
+    if (text === '') return say('Write the answer first.')
+    view.sends.set(k, { stage: 'review', text })
+    return render()
+  }
+  const send = view.sends.get(k)
+  if (step !== 'send' || send?.stage !== 'review') return
+  view.sends.set(k, { stage: 'sending', text: send.text })
+  render()
+  request('address.send', { address, verb: 'answer', key, text: send.text }, ADDRESS_TIMEOUT_MS)
+    .then((result) => {
+      view.sends.set(k, { stage: result?.sent === true ? 'sent' : 'failed', text: send.text, result })
+      if (result?.sent === true) view.drafts.delete(k)
+    })
+    .catch((error) =>
+      view.sends.set(k, {
+        stage: 'failed',
+        text: send.text,
+        result: { why: `${workerSilent(error)} Whether it was sent is not known: read the pull request before sending again.` }
+      })
+    )
+    .finally(render)
 }
 
 app.addEventListener('input', (event) => {
@@ -112,12 +204,14 @@ app.addEventListener('click', (event) => {
     else say(copy(url) ? 'This Orca client opens no links from a panel; the link is copied.' : `Open ${url}`)
     return
   }
-  if (d.copyAnswer !== undefined) {
-    const need = needOf(d.copyAnswer)
-    if (!need) return
-    const keys = answerKeys(need)
-    const text = answerText(keys, keys.map((k) => view.drafts.get(draftKey(need, k)) ?? ''))
-    return say(copy(text) ? `Copied the answer line for ${need.target}.` : 'The frame refused the copy.')
+  if (d.answer !== undefined) return answerStep(d.answer, d.address, d.key)
+  if (d.openAddress !== undefined) return openAddress(d.openAddress)
+  if (d.tab !== undefined) return show(d.tab)
+  if (d.threadAll !== undefined) {
+    view.all = true
+    view.thread = null
+    render()
+    return loadThread(d.threadAll)
   }
   if (d.reply !== undefined) {
     if (view.replying.has(d.reply)) view.replying.delete(d.reply)
@@ -131,12 +225,25 @@ app.addEventListener('click', (event) => {
   }
 })
 
+for (const tab of document.querySelectorAll('.bar [data-tab]')) tab.addEventListener('click', () => show(tab.dataset.tab))
+
 document.getElementById('refresh')?.addEventListener('click', () => {
   view.note = null
-  load(true)
+  if (view.tab === 'addresses') return loadList(true)
+  if (view.tab === 'thread') {
+    view.thread = null
+    render()
+    return loadThread(view.address)
+  }
+  loadLine(true)
 })
 
-orca.plugin.on?.('line.changed', () => load())
-setInterval(() => load(), POLL_MS)
-app.innerHTML = '<p class="sm mut pad">Reading the line…</p>'
-load()
+// The line keeps the inbox, the answer boxes' questions and the ages current; the list follows it.
+orca.plugin.on?.('line.changed', () => {
+  loadLine()
+  if (view.tab === 'addresses') loadList()
+})
+setInterval(() => loadLine(), POLL_MS)
+render()
+loadLine()
+

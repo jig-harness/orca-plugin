@@ -1,4 +1,4 @@
-/* The inbox in Orca's right sidebar, 350 px by default. Colours come from Orca's --orca-*
+/* The panel in Orca's right sidebar, 350 px by default. Colours come from Orca's --orca-*
    frame variables; frames get no success or warning colour, so the panel mixes its own. */
 :root {
   --fg: var(--orca-foreground, #0a0a0a);
@@ -33,8 +33,9 @@ p { margin: 0; }
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
 }
-.bar .name { font-weight: 600; }
-.bar button { margin-left: auto; }
+.bar #refresh { margin-left: auto; }
+.bar .tab { background: transparent; border-color: transparent; font-weight: 500; color: var(--mut); }
+.bar .tab[aria-pressed="true"] { color: var(--fg); background: var(--soft); border-color: var(--line); font-weight: 600; }
 
 button {
   font: inherit; font-size: 12px; color: var(--fg); background: var(--soft);
@@ -47,6 +48,10 @@ button:focus-visible, textarea:focus-visible, summary:focus-visible {
 }
 button.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
 button.ghost { background: transparent; }
+button.link {
+  background: none; border: none; padding: 0; color: inherit;
+  text-decoration: underline; text-underline-offset: 2px;
+}
 
 .band { padding: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }
 .band .title { font-size: 15px; font-weight: 600; }
@@ -62,12 +67,13 @@ button.ghost { background: transparent; }
   text-transform: uppercase; color: var(--mut);
 }
 
-.need {
+.need, .addr {
   display: grid; gap: 4px; padding: 10px; margin-bottom: 8px;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
 }
 .rowTop { display: flex; align-items: center; gap: 6px; }
 .dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--warn); }
+.dot.quiet { background: var(--mut); }
 .tgt { font-weight: 600; }
 .end { margin-left: auto; white-space: nowrap; }
 .stage { color: var(--mut); }
@@ -76,8 +82,34 @@ button.ghost { background: transparent; }
 
 .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
-.replies { display: grid; gap: 6px; margin-top: 4px; }
-.reply { display: grid; gap: 2px; }
+.replies { display: grid; gap: 8px; margin-top: 4px; }
+.box { display: grid; gap: 4px; }
+.box .acts { margin-top: 0; }
+.box.confirm { padding: 6px 8px; border: 1px solid var(--line); border-radius: calc(var(--radius) - 4px); background: var(--soft); }
+pre.line, pre.printed {
+  margin: 0; padding: 4px 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--bg); border: 1px solid var(--line); border-radius: calc(var(--radius) - 4px);
+}
+pre.printed { margin-top: 4px; color: var(--mut); }
+.sent b { color: var(--fg); }
+.failed { color: var(--bad); }
+.failed b { font-weight: 600; }
+
+.crumb { padding: 6px 12px 0; }
+.band .kv { margin-top: 6px; }
+.thread { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.entry { display: grid; gap: 3px; padding-left: 8px; border-left: 2px solid var(--line); }
+.entry.k-question, .entry.k-answer { border-left-color: var(--warn); }
+.entry .meta { display: flex; align-items: baseline; gap: 6px; }
+.entry .kind { white-space: nowrap; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+/* The record's own words, set apart from Jig's: never styled as the panel's text. */
+.quoted {
+  margin: 0; padding: 4px 8px; white-space: pre-wrap; font-size: 12px;
+  background: var(--soft); border-radius: calc(var(--radius) - 4px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.src .link { font-size: 11px; color: var(--mut); }
 textarea {
   width: 100%; resize: vertical; font: inherit; color: var(--fg);
   background: var(--bg); border: 1px solid var(--orca-input, var(--line));

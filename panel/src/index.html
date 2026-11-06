@@ -8,8 +8,9 @@
   </head>
   <body>
     <nav class="bar">
-      <span class="name">Inbox</span>
-      <button type="button" id="refresh" class="ghost sm" title="Read the line again now">Read again</button>
+      <button type="button" class="tab" data-tab="inbox" aria-pressed="true">Inbox</button>
+      <button type="button" class="tab" data-tab="addresses" aria-pressed="false">Addresses</button>
+      <button type="button" id="refresh" class="ghost sm" title="Read this view again now">Read again</button>
     </nav>
     <main id="app" aria-live="polite"></main>
     <script type="module" src="app.mjs"></script>
