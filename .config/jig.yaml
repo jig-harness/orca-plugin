@@ -32,3 +32,16 @@ dispatch:
   # `jig install dispatch --repo <clone> --yes`.
   labels:
     enabled: true
+changelog:
+  # The changelog is kept from change notes (changes/README.md): a pull
+  # request a user of the plugin would notice adds a note, and the release
+  # step (.github/workflows/changelog.yml) writes it after the merge.
+  file: CHANGELOG.md
+  format: keep-a-changelog
+  version:
+    files:
+      - { path: orca-plugin.json, key: version }
+  # What Orca installs: a change here ships only in a release.
+  release_paths: [main.mjs, lib/, orca-plugin.json]
+  release:
+    push: direct
