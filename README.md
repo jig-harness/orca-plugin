@@ -21,11 +21,9 @@ finishes or waits, the next step does not wait for the timer.
   to (the main checkout, for a linked worktree) and, when that repository
   has `.config/jig.yaml`, runs one tick of the dispatcher for it:
   `jig dispatch --apply --repo <repository> --json`.
-- It runs at most one tick per repository a minute. A status change inside
-  that minute schedules one tick at its end, so none is lost and none runs
-  twice; a tick never runs while another tick of the same repository does.
-  When the dispatcher answers that another tick holds its lock (its own
-  timer, say), the plugin tries again a minute later, up to five times.
+- It runs at most one tick per repository a minute, and never two at once
+  for the same repository; a status change is never lost
+  ([how](docs/architecture.md#timers)).
 - It shows the tick's receipt as one line in an Orca notification, such as
   `acme/app: 2 wanted, 1 started, 0 notified, 3 running (tick ...)`, and
   writes the rest (each action and launch, and the command that prints the
@@ -48,43 +46,17 @@ tab, a workspace's creation, `orca agent launch`, an automation or an
 orchestration.
 
 Before Orca starts an agent in a worktree, the plugin's `agent.launch.before`
-hook, without waiting on anything:
-
-1. finds the worktree's folder in what it already knows (from
-   `workspace.created`, `workspace.removed` and `workspace.list`, which it
-   re-reads on each event and every minute);
-2. writes a launch marker, `launches/<key>.json`, saying an agent is starting
-   there;
-3. then looks for gc's admission, `admissions/<key>.json`. When there is one,
-   readable or not, it refuses the launch with "jig gc is removing this
-   worktree". Otherwise the launch goes on.
-
-gc writes its admission before it reads the markers, and the plugin writes
-its marker before it reads the admission, so when the two overlap at least
-one of them sees the other. A refused launch's marker only makes gc keep
-that worktree for one run.
-
-The files are Jig's launch guard record, in
-`~/.local/state/jig/orca-guard/` (`%USERPROFILE%\.local\state\jig\orca-guard\`
-on Windows), and `<key>` is the SHA-256 of the worktree's path as Orca gives
-it. [Jig's gc README](https://github.com/jig-harness/jig/blob/main/plugin/gc/README.md#the-launch-guard-record)
-defines them. The plugin also writes `heartbeat.json` there about every
-minute; gc trusts the guard only while that heartbeat is fresh, and
-otherwise collects as it would without the plugin and says so in its
-receipt.
+hook checks Jig's launch guard record, which gc writes while it removes a
+worktree. When gc holds that worktree, the launch is refused with "jig gc is
+removing this worktree". Otherwise it goes on. How the hook and gc see each
+other, and what the guard cannot see, is in
+[docs/launch-guard.md](docs/launch-guard.md).
 
 The guard fails open. A launch in a folder workspace, in a workspace the
 plugin does not know, or one where reading or writing the record fails goes
 on, and the plugin logs each refusal and each launch it let through on an
 error. Orca also lets a launch through when the hook takes more than two
 seconds or the worker has crashed.
-
-What it never sees, which gc's own checks still cover:
-
-- an agent a person types into a plain shell, in Orca or anywhere else;
-- a saved session Orca restores when it starts;
-- launches on an Orca running on its Node server, orcad (`orca serve`
-  without `ORCA_SERVE_RUNTIME=electron`), which loads no plugins at all.
 
 ## The status bar
 
@@ -104,10 +76,8 @@ One status bar item shows what the dispatch line waits on, from
 | `Jig not found` | The Jig command cannot be resolved; the tooltip says why. |
 
 It reads the line when the plugin starts, after every tick the plugin runs,
-and every minute; never two reads at once, each stopped after 30 seconds, finding the command and reading the settings included.
-A change of the item is logged once, not on every read. Pressing the item
-opens nothing yet. An Orca without `statusBar.update`, such as orcad, reads
-nothing.
+and every minute ([what it reads](docs/dispatch-line.md)). Pressing the item
+opens nothing yet.
 
 ## What it does not do
 
@@ -163,12 +133,6 @@ nothing.
   each tick fails with a notification saying so.
 - The repositories it should wake the dispatcher for have `.config/jig.yaml`.
 
-**Finding a workspace's folder.** An agent's status change and a launch name
-their workspace by id. The plugin looks it up in `workspace.list`, which
-answers for every workspace on this machine, and in the folders
-`workspace.created` reported; it needs no capability beyond
-`workspace:read`.
-
 ## Install
 
 The plugin is not listed in a catalog yet. Load it from a clone:
@@ -218,17 +182,9 @@ directory on every platform, which is where Jig looks; Jig reads no
 
 ## Develop
 
-```sh
-node --test                                   # the worker's tests, Node 20 or later
-pnpm validate:plugin /path/to/orca-plugin     # from an Orca checkout
-orca plugin dev emit . agent.status.changed --data '{"workspaceId":"...","paneKey":"t:1","state":"done","receivedAt":0}'
-```
-
-`main.mjs` is plain JavaScript with no dependencies. The tests run the
-worker's logic against a fake Orca, a fake clock, a fake process runner and
-a fake file system, and one test against real files.
-CI runs them, and validates the manifest with Orca's own validator at the
-release `engines.orca` names.
+`node --test` runs the tests. How the worker is built, how to load it while
+you work and how CI checks it are in [docs/](docs/architecture.md), starting
+with [docs/development.md](docs/development.md).
 
 ## License
 
