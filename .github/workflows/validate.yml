@@ -8,8 +8,11 @@ permissions:
   contents: read
 
 env:
-  # Orca v1.4.248, the release engines.orca names: its validator is the one that release enforces.
-  # Bump it deliberately, together with engines.orca when a newer field is used.
+  # The Orca release engines.orca names, and the commit its tag points at: its validator is the
+  # one that release enforces. Bump all three together, deliberately, when a newer field is used;
+  # the validate job fails unless ORCA_REF is the commit of tag v$ORCA_RELEASE and engines.orca
+  # is exactly `>=$ORCA_RELEASE`.
+  ORCA_RELEASE: 1.4.248
   ORCA_REF: 965978bc78bf03a6a43187c1ed28fcffe0e01bb5
 
 jobs:
@@ -45,6 +48,28 @@ jobs:
           ref: ${{ env.ORCA_REF }}
           path: orca
           persist-credentials: false
+
+      # One ref from the remote, no history: the tag's commit (peeled when it is annotated).
+      - name: Check the Orca pin
+        run: |
+          tag="v$ORCA_RELEASE"
+          refs=$(git ls-remote https://github.com/stablyai/orca "refs/tags/$tag" "refs/tags/$tag^{}")
+          commit=$(printf '%s\n' "$refs" | awk -v peeled="refs/tags/$tag^{}" '$2 == peeled { print $1 }')
+          [ -n "$commit" ] || commit=$(printf '%s\n' "$refs" | awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }')
+          if [ -z "$commit" ]; then
+            echo "::error::Orca has no tag $tag; ORCA_RELEASE names a release that does not exist"
+            exit 1
+          fi
+          if [ "$commit" != "$ORCA_REF" ]; then
+            echo "::error::ORCA_REF is $ORCA_REF, but Orca's tag $tag is $commit; bump ORCA_REF and ORCA_RELEASE together"
+            exit 1
+          fi
+          engines=$(node -p "require('./plugin/orca-plugin.json').engines?.orca ?? ''")
+          if [ "$engines" != ">=$ORCA_RELEASE" ]; then
+            echo "::error file=plugin/orca-plugin.json::engines.orca is '$engines', but the validator is pinned to Orca $ORCA_RELEASE; set it to '>=$ORCA_RELEASE' or bump ORCA_RELEASE and ORCA_REF"
+            exit 1
+          fi
+          echo "Orca $tag is $commit, and engines.orca is $engines"
 
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:

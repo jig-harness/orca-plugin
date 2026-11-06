@@ -33,9 +33,35 @@ pnpm validate:plugin /path/to/orca-plugin   # from an Orca checkout
 ```
 
 CI runs Orca's validator from an Orca checkout pinned to the release
-`engines.orca` names (`ORCA_REF` in `.github/workflows/validate.yml`). Bump
-the pin deliberately, and together with `engines.orca` when the manifest uses
-a field a newer release introduced.
+`engines.orca` names (`ORCA_RELEASE` and its commit `ORCA_REF` in
+`.github/workflows/validate.yml`). Bump the pin deliberately, and together
+with `engines.orca` when the manifest uses a field a newer release
+introduced. The validate job fails unless `ORCA_REF` is the commit of Orca's
+tag `v$ORCA_RELEASE` and `engines.orca` is exactly `>=$ORCA_RELEASE`.
+
+## Contracts
+
+The `Contracts` workflow (`.github/workflows/contracts.yml`) checks the
+plugin against the two contracts it shares with Jig, using a Jig checkout
+pinned by `JIG_REF`. Bump that pin by hand, as you bump `ORCA_REF`.
+
+- `tests/contracts/guard-record.mjs` checks the launch guard record. The
+  plugin's keys match Jig's. Its heartbeat makes Jig's `guardState` report
+  the plugin as guarding. Its launch marker reads in Jig's `launchVeto`. An
+  admission Jig's `admit` writes makes the hook refuse the launch.
+- `tests/contracts/dispatch-line.mjs` runs the pinned Jig's
+  `jig dispatch line --json` in a fresh home, and checks that the plugin's
+  `lineStatus` reads what it prints. It checks three cases: no tick yet, a
+  fresh tick's needs, and an overdue tick.
+
+Both run with Bun, which runs Jig's TypeScript, and need no install. They
+are not `*.test.mjs` files, so `node --test` skips them. To run them
+locally:
+
+```sh
+JIG_DIR=/path/to/jig bun --no-env-file tests/contracts/guard-record.mjs
+JIG_DIR=/path/to/jig bun --no-env-file tests/contracts/dispatch-line.mjs
+```
 
 ## Loading it while you work
 
