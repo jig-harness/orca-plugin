@@ -2,7 +2,7 @@
 // workspace map; and the inbox's order and answer line, as the dashboard has them.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { needPaths } from '../lib/panel.mjs'
+import { ANSWER_BUDGET_BYTES, needPaths, panelAnswer } from '../lib/panel.mjs'
 import { LINE_READ_DEADLINE_MS, LINE_REFRESH_MS } from '../lib/status-bar.mjs'
 import { answerText, groups, openableUrl, panelHtml } from '../panel/src/inbox.mjs'
 import { fixtureAnswer, harness, lineAnswer, printed } from './fake-orca.mjs'
@@ -138,6 +138,37 @@ describe('the panel worker', () => {
     h.dispatcher.dispose()
     h.releaseLine()
     assert.equal((await pending).state, 'unreadable')
+  })
+})
+
+describe('the panel answer', () => {
+  const idAt = async () => null
+  /** A `lineAnswer` for the fixture `scenario`, as the status bar keeps it. */
+  const kept = (answer, extra = {}) => ({ state: 'line', value: answer.value, ...extra })
+
+  test('a kept answer\'s clock moves on by the time since its read', async () => {
+    const fixture = fixtureAnswer('quiet')
+    const said = Date.parse(fixture.value.now)
+    const served = await panelAnswer(kept(fixture, { readAt: 1_000 }), idAt, 1_000 + 59_000)
+    assert.equal(Date.parse(served.now), said + 59_000)
+  })
+
+  test('a line carrying no interval gets the one the status bar used', async () => {
+    const answer = fixtureAnswer('quiet')
+    delete answer.value.line.intervalMs
+    assert.equal((await panelAnswer(kept(answer, { intervalMs: 300_000 }), idAt)).line.intervalMs, 300_000)
+    assert.equal((await panelAnswer(kept(answer), idAt)).line.intervalMs, null)
+  })
+
+  test('decision text over the transport limit is cut, every need and decision kept', async () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    for (const d of need.decisions) d.lines = Array.from({ length: 200 }, () => 'x'.repeat(10_000))
+    const served = await panelAnswer(kept(answer), idAt)
+    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES + 1000)
+    const [cutNeed] = served.line.needs
+    assert.deepEqual(cutNeed.decisions.map((d) => d.key), need.decisions.map((d) => d.key))
+    for (const d of cutNeed.decisions) assert.match(d.lines.at(-1), /cut here/)
   })
 })
 

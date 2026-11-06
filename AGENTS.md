@@ -22,8 +22,8 @@ This repository is an [Orca](https://www.onorca.dev) plugin for
 - **The launch hook never awaits.** It decides from what the worker already
   holds and from synchronous file reads, within Orca's two seconds.
 - **Plain JavaScript, no runtime dependencies.** ES modules, Node built-ins only.
-  `playwright-core`, for the panel's browser test, is the one development
-  dependency.
+  `playwright-core`, for the panel's browser test, is a development dependency
+  only.
 - **One concern per pull request.** A pull request that moves code or docs
   changes no behaviour, and the tests pass on every commit.
 - **Each fact is written once.** Users' facts go in the README, how it works in

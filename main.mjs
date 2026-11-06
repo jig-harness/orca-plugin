@@ -50,7 +50,8 @@ export function createDispatcher({
 
   const track = (promise) => {
     inFlight.add(promise)
-    promise.finally(() => inFlight.delete(promise))
+    const done = () => inFlight.delete(promise)
+    promise.then(done, done)
     return promise
   }
 
@@ -87,7 +88,7 @@ export function createDispatcher({
     openWorkspace: (input) => track(panel.openWorkspace(input)),
     /** Resolves once every handler and tick started so far has settled (for tests). */
     async settled() {
-      while (inFlight.size > 0) await Promise.all([...inFlight])
+      while (inFlight.size > 0) await Promise.allSettled([...inFlight])
     },
     dispose() {
       wake.dispose()

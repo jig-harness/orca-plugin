@@ -53,7 +53,7 @@ const SCENARIOS = {
       return answer
     },
     list: [row('wt-jig-456', PARK)],
-    async check(page, { opened, external }) {
+    async check(page, { answer, opened, external }) {
       const need = page.locator('article.need').first()
       assert.equal(await need.locator('details.decision').count(), 3)
       assert.equal(await need.locator('details.decision[open]').count(), 1)
@@ -66,7 +66,14 @@ const SCENARIOS = {
       await page.locator('textarea').first().fill('A, records only')
       await page.locator('textarea').first().blur()
       await need.getByRole('button', { name: /^Copy answer/ }).click()
-      assert.match(await page.textContent('.note'), /Copied the answer line for PR #456|refused the copy/)
+      assert.equal(await page.textContent('.note'), 'Copied the answer line for PR #456.')
+      const keys = [...new Set(answer.value.line.needs[0].decisions.map((d) => d.key))]
+      assert.equal(keys.length, 3)
+      const copied = await page.evaluate(() => window.__copied)
+      assert.deepEqual(
+        copied,
+        keys.map((key, i) => `answer ${key}: ${i === 0 ? 'A, records only' : ''}`).join('\n\n')
+      )
     }
   }
 }
@@ -130,6 +137,14 @@ try {
       try {
         await page.setContent(framed(built, theme), { waitUntil: 'load' })
         await page.waitForSelector('.band, .empty', { timeout: 5000 })
+        // The frame lets a copy through inside a click; the stand-in keeps what was copied.
+        await page.evaluate(() => {
+          document.execCommand = (command) => {
+            if (command !== 'copy') return false
+            window.__copied = document.querySelector('textarea[readonly]')?.value ?? null
+            return true
+          }
+        })
         const overflow = await page.evaluate(() => document.documentElement.scrollWidth)
         assert.ok(overflow <= WIDTH, `the page is ${overflow} px wide, wider than the sidebar's ${WIDTH}`)
         await page.screenshot({ path: new URL(`${name}.${theme}.png`, SHOTS).pathname, fullPage: true })

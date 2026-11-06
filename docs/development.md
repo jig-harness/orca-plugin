@@ -10,7 +10,7 @@ description: How to load the plugin while you work on it, run its tests and Orca
 
 The worker is plain JavaScript ES modules with no dependencies, so it needs
 nothing installed or built. Node 20 or later runs the tests. The panel has
-one build step and one development dependency, for its browser test
+one build step and a development dependency for its browser test
 ([The panel](#the-panel)).
 
 ## Tests

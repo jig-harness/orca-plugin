@@ -17,7 +17,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SOURCE = join(ROOT, 'panel', 'src')
 export const BUILT = join(ROOT, 'panel', 'inbox.html')
 
-const RELATIVE_IMPORT = /^import \{([\w\s,]+)\} from '\.\/([\w-]+\.mjs)'\s*;?\s*$/
+const RELATIVE_IMPORT = /^import \{\s*(\w+(?:\s*,\s*\w+)*)\s*,?\s*\} from '\.\/([\w-]+\.mjs)'\s*;?\s*$/
 const ANY_IMPORT = /^\s*import\b|\bimport\s*\(/
 const EXPORT_DECLARATION = /^export (?=(?:async )?function|const |let |class )/
 
