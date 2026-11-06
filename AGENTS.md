@@ -33,5 +33,7 @@ This repository is an [Orca](https://www.onorca.dev) plugin for
 - `node --test`: the tests (also run by `.github/workflows/validate.yml`).
 - `orca-ide plugin validate .` (`orca plugin validate .` off Linux): Orca's
   manifest checks.
+- `JIG_DIR=<jig checkout> bun --no-env-file tests/contracts/<script>.mjs`: the
+  contracts with Jig (also run by `.github/workflows/contracts.yml`).
 - `/jig:docs`: the frontmatter, dates and scars of the pages under `docs/`.
   Advance a page's `last_updated` when you change its body.

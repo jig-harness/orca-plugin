@@ -1,0 +1,52 @@
+name: Contracts
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  # The Jig release whose contracts the plugin is checked against: the launch guard record
+  # (plugin/shared/orca-guard.ts) and `jig dispatch line --json`. Bump it by hand, like ORCA_REF in
+  # validate.yml, when the plugin follows a newer Jig.
+  JIG_REF: 89eb89351999036c137436cd455f79c84ce3f038 # v0.146.0
+  # The Bun that Jig's mise.toml names at JIG_REF.
+  BUN_VERSION: 1.4.4
+
+jobs:
+  jig:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: plugin
+          persist-credentials: false
+
+      - name: Check out Jig
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: jig-harness/jig
+          ref: ${{ env.JIG_REF }}
+          path: jig
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      # Bun runs Jig's TypeScript in place; neither script needs Jig's dependencies installed.
+      - name: The launch guard record
+        working-directory: plugin
+        env:
+          JIG_DIR: ${{ github.workspace }}/jig
+        run: bun --no-env-file tests/contracts/guard-record.mjs
+
+      - name: The dispatch line
+        working-directory: plugin
+        env:
+          JIG_DIR: ${{ github.workspace }}/jig
+        run: bun --no-env-file tests/contracts/dispatch-line.mjs
