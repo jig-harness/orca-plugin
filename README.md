@@ -2,7 +2,8 @@
 
 An [Orca](https://www.onorca.dev) plugin that wakes
 [Jig](https://github.com/jig-harness/jig)'s dispatcher when an agent in Orca
-stops for input or finishes, and shows what the dispatcher did.
+stops for input or finishes, shows what the dispatcher did, and refuses to
+start an agent in a worktree `jig gc` is removing.
 
 Jig's dispatcher is a program that looks at a repository's tracker, its
 pull requests and the agent sessions running on this machine, and starts
@@ -31,9 +32,58 @@ finishes or waits, the next step does not wait for the timer.
 - When a workspace is created, it logs it and remembers its folder in the
   plugin's own storage, to find the folder again when that workspace's
   agents change status.
+- When a workspace is removed, it forgets it and, when it knows the
+  repository the workspace belonged to, runs a tick for that repository, so
+  a launch whose workspace a person removed ends now, not at the next timer.
 - A `jig` command that is missing or fails is a notification and a log
   line, never a crash.
 
+## The launch guard
+
+`jig gc` removes worktrees nobody uses any more. Between its last look at
+Orca and the removal, an agent could start in the worktree it is about to
+delete. The plugin closes that gap for every agent Orca starts: from a new
+tab, a workspace's creation, `orca agent launch`, an automation or an
+orchestration.
+
+Before Orca starts an agent in a worktree, the plugin's `agent.launch.before`
+hook, without waiting on anything:
+
+1. finds the worktree's folder in what it already knows (from
+   `workspace.created`, `workspace.removed` and `workspace.list`, which it
+   re-reads on each event and every minute);
+2. writes a launch marker, `launches/<key>.json`, saying an agent is starting
+   there;
+3. then looks for gc's admission, `admissions/<key>.json`. When there is one,
+   readable or not, it refuses the launch with "jig gc is removing this
+   worktree". Otherwise the launch goes on.
+
+gc writes its admission before it reads the markers, and the plugin writes
+its marker before it reads the admission, so when the two overlap at least
+one of them sees the other. A refused launch's marker only makes gc keep
+that worktree for one run.
+
+The files are Jig's launch guard record, in
+`~/.local/state/jig/orca-guard/` (`%USERPROFILE%\.local\state\jig\orca-guard\`
+on Windows), and `<key>` is the SHA-256 of the worktree's path as Orca gives
+it. [Jig's gc README](https://github.com/jig-harness/jig/blob/main/plugin/gc/README.md#the-launch-guard-record)
+defines them. The plugin also writes `heartbeat.json` there about every
+minute; gc trusts the guard only while that heartbeat is fresh, and
+otherwise collects as it would without the plugin and says so in its
+receipt.
+
+The guard fails open. A launch in a folder workspace, in a workspace the
+plugin does not know, or one where reading or writing the record fails goes
+on, and the plugin logs each refusal and each launch it let through on an
+error. Orca also lets a launch through when the hook takes more than two
+seconds or the worker has crashed.
+
+What it never sees, which gc's own checks still cover:
+
+- an agent a person types into a plain shell, in Orca or anywhere else;
+- a saved session Orca restores when it starts;
+- launches on an Orca running on its Node server, orcad (`orca serve`
+  without `ORCA_SERVE_RUNTIME=electron`), which loads no plugins at all.
 ## What it does not do
 
 - It holds none of Jig's rules. What a tick starts, for which repository and
@@ -47,13 +97,20 @@ finishes or waits, the next step does not wait for the timer.
 - It has no panel. Jig's dashboard stays `jig dispatch dashboard`.
 - It runs ticks only for workspaces on this machine. A workspace on an SSH
   or WSL host is logged and skipped.
-- It contributes no skills or hooks to Orca: Orca reserves those
-  contribution points until their format is defined.
+- It contributes no skills to Orca, and only the one hook above.
 
 ## Requirements
 
-- **Orca 1.4.246 or later.** The plugin is a full-access (`trusted-worker`)
-  plugin with declared settings, which that release introduced.
+- **Orca 1.4.248 or later.** The plugin is a full-access (`trusted-worker`)
+  plugin with declared settings and the `agent.launch.before` hook, which
+  that release introduced. A plugin with a hook keeps its worker running
+  while it is enabled.
+- **On a headless Linux server, `orca serve` with
+  `ORCA_SERVE_RUNTIME=electron`.** By default `orca serve` runs on orcad,
+  which has no plugin service, so no plugin loads, this one included
+  ([Orca's remote servers page](https://github.com/stablyai/orca/blob/main/docs/site/content/docs/remote-servers.mdx)).
+  A launch from a paired client is decided by the server's plugins, so the
+  server must run this one for the guard to see those launches.
 - **The `jig` plugin**, installed for Claude Code or Codex, with **Bun** on
   the `PATH` Orca starts with ([Jig's plugin
   README](https://github.com/jig-harness/jig/blob/main/plugin/README.md)
@@ -61,12 +118,10 @@ finishes or waits, the next step does not wait for the timer.
   each tick fails with a notification saying so.
 - The repositories it should wake the dispatcher for have `.config/jig.yaml`.
 
-**Finding a workspace's folder.** An agent's status change names its
-workspace by id. On Orca 1.4.246 a plugin cannot look a workspace up, so
-the plugin knows the folders of workspaces created while it is enabled, and
-skips the others with a log line. An Orca whose plugin host API has
-`workspace.list` (host API 1.3, after 1.4.246) answers for every workspace,
-and the plugin uses it when it is there; it needs no capability beyond
+**Finding a workspace's folder.** An agent's status change and a launch name
+their workspace by id. The plugin looks it up in `workspace.list`, which
+answers for every workspace on this machine, and in the folders
+`workspace.created` reported; it needs no capability beyond
 `workspace:read`.
 
 ## Install
@@ -82,11 +137,12 @@ orca plugin dev load orca-plugin
 approve it with (`--approve <fingerprint>`). Orca shows the same review
 under Settings → Plugins → Development folders.
 
-What it asks for: `agent:read` and `workspace:read` for the two events and
+What it asks for: `agent:read` and `workspace:read` for the declared events and
 the workspace list, `notifications:show` for the receipt, `storage:own` for
-the workspaces it remembers, `settings:own` for its one setting.
+the workspaces it remembers, `settings:own` for its settings. The launch
+hook needs no capability; Orca lists it in the same review.
 
-## The setting
+## The settings
 
 **Jig command** (`jigCommand`): the command that runs Jig, without
 arguments. The plugin adds `dispatch --apply --repo <repository> --json`.
@@ -106,6 +162,11 @@ gives a plugin worker only `PATH`, `HOME`, the locale and the temporary
 directory, so, for example,
 `env CLAUDE_CONFIG_DIR=/home/me/.claude-work bun --no-env-file --config=...`.
 
+**Launch guard directory** (`guardDirectory`): where the launch guard record
+lives. Left empty, it is `.local/state/jig/orca-guard` under the home
+directory on every platform, which is where Jig looks; Jig reads no
+`XDG_STATE_HOME` for it. Set it only to name the directory Jig itself uses.
+
 ## Develop
 
 ```sh
@@ -115,7 +176,8 @@ orca plugin dev emit . agent.status.changed --data '{"workspaceId":"...","paneKe
 ```
 
 `main.mjs` is plain JavaScript with no dependencies. The tests run the
-worker's logic against a fake Orca, a fake clock and a fake process runner.
+worker's logic against a fake Orca, a fake clock, a fake process runner and
+a fake file system, and one test against real files.
 CI runs them, and validates the manifest with Orca's own validator at the
 release `engines.orca` names.
 

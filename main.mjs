@@ -1,10 +1,14 @@
 // The jig plugin's worker. Orca starts it with the user's permissions and hands it agent and
 // workspace events. When an agent stops for input or finishes in a repository that uses Jig, it
-// runs one tick of Jig's dispatcher for that repository and shows what the tick did. Jig's rules
-// stay in Jig: this file only decides when to wake the dispatcher and which repository to name.
+// runs one tick of Jig's dispatcher for that repository and shows what the tick did. It also
+// guards agent launches: a launch into a worktree `jig gc` is removing is refused. Jig's rules
+// stay in Jig: this file only decides when to wake the dispatcher and which repository to name,
+// and the guard follows the launch guard record in Jig's plugin/gc/README.md.
 import { spawn } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
+import * as nodeFs from 'node:fs'
 import { existsSync } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, hostname } from 'node:os'
 import { delimiter, join } from 'node:path'
 
 /** Agent states that mean a session may want the dispatcher: it needs a person, or it ended. */
@@ -16,9 +20,11 @@ export const TICK_WINDOW_MS = 60_000
 /** How long a tick may run before it is stopped; the dispatcher's own timer allows as much. */
 export const TICK_DEADLINE_MS = 6 * 3600_000
 
-/** Orca stops a worker that has been idle for a few minutes; a host call this often while a tick
- *  runs keeps it from stopping mid-tick. */
-export const HEARTBEAT_MS = 60_000
+/** How often the plugin writes its heartbeat in the guard record and re-lists workspaces. */
+export const GUARD_HEARTBEAT_MS = 60_000
+
+/** What a refused launch tells the person. */
+export const GUARD_DENY_REASON = 'jig gc is removing this worktree'
 
 /** A tick that finds the dispatcher's lock held is tried again this many times, a window apart. */
 export const LOCK_HELD_RETRIES = 5
@@ -26,6 +32,7 @@ export const LOCK_HELD_RETRIES = 5
 const LOCK_HELD_EXIT = 3
 const PLUGIN_ID = 'jig@jig'
 const SETTING_KEY = 'jigCommand'
+const GUARD_SETTING_KEY = 'guardDirectory'
 const STORAGE_KEY = 'workspaces'
 const REMEMBERED_WORKSPACES = 200
 const LIST_CACHE_MS = 30_000
@@ -156,6 +163,48 @@ export function receiptDetail(receipt) {
   return lines
 }
 
+/**
+ * The guard record's directory: Jig's state root under the home directory on every platform.
+ * `home` is `os.homedir()`, which on Windows is the profile directory, never `HOME`.
+ */
+export function defaultGuardDirectory(home) {
+  return join(home, '.local', 'state', 'jig', 'orca-guard')
+}
+
+/** A guard record key: the lowercase hex SHA-256 of the worktree path exactly as Orca gives it. */
+export function guardKey(path) {
+  return createHash('sha256').update(path, 'utf8').digest('hex')
+}
+
+/** A launch marker, as the guard record's `orca-guard-launch` kind. */
+export function launchMarker({ path, workspaceId, agent, writer, at }) {
+  return { kind: 'orca-guard-launch', v: 1, key: guardKey(path), writer, at, path, workspaceId, agent }
+}
+
+/** The plugin's heartbeat, as the guard record's `orca-guard-heartbeat` kind. */
+export function heartbeatRecord({ writer, at, pluginVersion }) {
+  return { kind: 'orca-guard-heartbeat', v: 1, key: 'heartbeat', writer, at, pid: writer.pid, pluginVersion }
+}
+
+/**
+ * Writes `record` as compact JSON and a newline to `directory/name`: to a temporary file first,
+ * named to start with `.` and end in `.tmp` so no reader takes it for a record, then renamed into
+ * place. Synchronous, so the launch hook awaits nothing.
+ */
+export function writeRecord(fs, directory, name, record) {
+  fs.mkdirSync(directory, { recursive: true })
+  const temporary = join(directory, `.${name}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`)
+  try {
+    fs.writeFileSync(temporary, `${JSON.stringify(record)}\n`)
+    fs.renameSync(temporary, join(directory, name))
+  } catch (error) {
+    try {
+      fs.unlinkSync(temporary)
+    } catch {}
+    throw error
+  }
+}
+
 function firstLine(text) {
   return (
     String(text ?? '')
@@ -228,25 +277,44 @@ const realClock = {
 
 /**
  * The worker's logic, with everything it touches passed in: `host` is `orca.host`, `log` is
- * `orca.log`, `run(argv, options)` runs a program and resolves `{ code, stdout, stderr, error? }`.
+ * `orca.log`, `run(argv, options)` runs a program and resolves `{ code, stdout, stderr, error? }`,
+ * and `fs` is the synchronous part of `node:fs` the launch guard uses.
  */
 export function createDispatcher({
   host,
   log,
   run = runProgram,
   exists = existsSync,
+  fs = nodeFs,
   clock = realClock,
   env = process.env,
   platform = process.platform,
-  home = homedir()
+  home = homedir(),
+  hostName = hostname(),
+  pid = process.pid,
+  pluginVersion = null
 }) {
   const repos = new Map()
   const known = new Map()
+  /** Workspace id to local path, for the launch hook, which must not await a host call. */
+  const guardPaths = new Map()
+  /** Workspace path to the Jig repository it belongs to, kept for when its files are gone. */
+  const repositoryOf = new Map()
+  let guardDirectory = defaultGuardDirectory(home)
   let loaded = null
   let listed = { at: -Infinity, workspaces: [] }
-  let heartbeat = null
-  let running = 0
+  let guardTimer = null
+  let disposed = false
+  /** Ids the last `workspace.list` put in `guardPaths`, so a later list can drop the ones it lost. */
+  let listedIds = new Set()
+  /** Refresh bookkeeping: a response is stale if a newer one applied, or its workspace was removed meanwhile. */
+  let listSeq = 0
+  let appliedSeq = 0
+  let pendingLists = 0
+  /** Path to the `listSeq` at its removal; a list started no later than that must not restore it. */
+  const removedAt = new Map()
   const inFlight = new Set()
+  const writer = { host: hostName, pid }
 
   const track = (promise) => {
     inFlight.add(promise)
@@ -264,7 +332,10 @@ export function createDispatcher({
         const value = result?.value
         if (value && typeof value === 'object')
           for (const [id, path] of Object.entries(value))
-            if (typeof path === 'string' && !known.has(id)) known.set(id, path)
+            if (typeof path === 'string' && !known.has(id)) {
+              known.set(id, path)
+              if (!guardPaths.has(id)) guardPaths.set(id, path)
+            }
       })
       .catch((error) => log(`could not read remembered workspaces: ${error.message}`))
     await loaded
@@ -275,11 +346,131 @@ export function createDispatcher({
     known.delete(id)
     known.set(id, path)
     while (known.size > REMEMBERED_WORKSPACES) known.delete(known.keys().next().value)
+    await store(`could not remember workspace ${id}`)
+  }
+
+  async function forget(id) {
+    await remembered()
+    if (known.delete(id)) await store(`could not forget workspace ${id}`)
+  }
+
+  async function store(failure) {
     try {
       await call('storage.set', { key: STORAGE_KEY, value: Object.fromEntries(known) })
     } catch (error) {
-      log(`could not remember workspace ${id}: ${error.message}`)
+      log(`${failure}: ${error.message}`)
     }
+  }
+
+  /** Lists Orca's workspaces and adds this machine's to the launch hook's map. */
+  async function listWorkspaces() {
+    const seq = ++listSeq
+    pendingLists++
+    let result
+    try {
+      result = await call('workspace.list', {})
+    } finally {
+      pendingLists--
+    }
+    // A newer response already applied: this snapshot predates it and would overwrite its state.
+    if (seq < appliedSeq) return listed
+    appliedSeq = seq
+    const rows = (result?.workspaces ?? []).filter((w) => !(removedAt.get(w?.path) >= seq))
+    if (pendingLists === 0) removedAt.clear()
+    listed = { at: clock.now(), workspaces: rows }
+    const ids = new Set()
+    for (const row of rows)
+      if (row?.id && row.path && (!row.hostId || row.hostId === 'local')) {
+        guardPaths.set(row.id, row.path)
+        ids.add(row.id)
+      }
+    for (const id of listedIds) if (!ids.has(id) && !known.has(id)) guardPaths.delete(id)
+    listedIds = ids
+    return listed
+  }
+
+  /** Refreshes the launch hook's map and the guard directory setting; never rejects. */
+  async function refreshGuard() {
+    try {
+      const result = await call('settings.get', {})
+      const value = result?.settings?.[GUARD_SETTING_KEY]
+      const configured = typeof value === 'string' ? value.trim() : ''
+      guardDirectory = configured || defaultGuardDirectory(home)
+    } catch (error) {
+      log(`could not read the ${GUARD_SETTING_KEY} setting: ${error.message}`)
+    }
+    await remembered()
+    if (!host.has?.('workspace.list')) return
+    try {
+      await listWorkspaces()
+    } catch (error) {
+      log(`could not list workspaces for the launch guard: ${error.message}`)
+    }
+  }
+
+  /** The local path of the workspace a launch names, from memory only; null when unknown. */
+  function guardPath(workspaceId) {
+    const path = guardPaths.get(workspaceId)
+    if (path) return path
+    const locator = workspaceId.replace(FOLDER_INSTANCE_SUFFIX, '')
+    for (const candidate of guardPaths.values())
+      if (locator.endsWith(`::${candidate}`)) return candidate
+    return null
+  }
+
+  /**
+   * The `agent.launch.before` hook. Synchronous and awaiting nothing, in the guard record's
+   * order: write the launch marker, then look for gc's admission. An admission that exists,
+   * readable or not, refuses the launch. An unknown workspace, a folder or any error passes.
+   */
+  function guardLaunch(event) {
+    const workspaceId = event?.workspaceId
+    if (!workspaceId || event.workspaceKind !== 'worktree') return undefined
+    const path = guardPath(workspaceId)
+    if (!path) return undefined
+    const agent = event.agent ?? null
+    try {
+      const key = guardKey(path)
+      const at = new Date(clock.now()).toISOString()
+      writeRecord(
+        fs,
+        join(guardDirectory, 'launches'),
+        `${key}.json`,
+        launchMarker({ path, workspaceId, agent, writer, at })
+      )
+      const admission = fs.statSync(join(guardDirectory, 'admissions', `${key}.json`), {
+        throwIfNoEntry: false
+      })
+      if (!admission) return undefined
+      log(`launch guard: refused ${agent ?? 'an agent'} in ${path}: ${GUARD_DENY_REASON}`)
+      return { deny: GUARD_DENY_REASON }
+    } catch (error) {
+      log(`launch guard: let ${agent ?? 'an agent'} in ${path} through on an error: ${error?.message ?? error}`)
+      return undefined
+    }
+  }
+
+  function writeHeartbeat() {
+    if (disposed) return
+    try {
+      const at = new Date(clock.now()).toISOString()
+      writeRecord(fs, guardDirectory, 'heartbeat.json', heartbeatRecord({ writer, at, pluginVersion }))
+    } catch (error) {
+      log(`launch guard: could not write the heartbeat: ${error?.message ?? error}`)
+    }
+  }
+
+  /** Writes the heartbeat and refreshes the hook's map now and every `GUARD_HEARTBEAT_MS`. */
+  function startGuard() {
+    if (guardTimer) return
+    const beat = () => {
+      if (disposed) return
+      writeHeartbeat()
+      track(refreshGuard())
+      guardTimer = clock.setTimeout(beat, GUARD_HEARTBEAT_MS)
+    }
+    track(refreshGuard().then(writeHeartbeat))
+    guardTimer = clock.setTimeout(beat, GUARD_HEARTBEAT_MS)
   }
 
   /**
@@ -292,10 +483,7 @@ export function createDispatcher({
     await remembered()
     if (known.has(workspaceId)) return known.get(workspaceId)
     if (!host.has?.('workspace.list')) return null
-    if (clock.now() - listed.at > LIST_CACHE_MS) {
-      const result = await call('workspace.list', {})
-      listed = { at: clock.now(), workspaces: result?.workspaces ?? [] }
-    }
+    if (clock.now() - listed.at > LIST_CACHE_MS) await listWorkspaces()
     const locator = workspaceId.replace(FOLDER_INSTANCE_SUFFIX, '')
     const row =
       listed.workspaces.find((w) => w.id === workspaceId) ??
@@ -335,7 +523,9 @@ export function createDispatcher({
     const configured = [repo.path, top ?? path].some((root) =>
       exists(join(root, '.config', 'jig.yaml'))
     )
-    return configured ? repo.path : null
+    if (!configured) return null
+    repositoryOf.set(path, repo.path)
+    return repo.path
   }
 
   async function jigCommand() {
@@ -407,26 +597,6 @@ export function createDispatcher({
     }
   }
 
-  function startHeartbeat() {
-    running += 1
-    if (heartbeat) return
-    const beat = () => {
-      heartbeat = clock.setTimeout(() => {
-        call('storage.keys', {}).catch(() => {})
-        beat()
-      }, HEARTBEAT_MS)
-    }
-    beat()
-  }
-
-  function stopHeartbeat() {
-    running -= 1
-    if (running === 0 && heartbeat) {
-      clock.clearTimeout(heartbeat)
-      heartbeat = null
-    }
-  }
-
   /** One tick for `repo`; resolves whether to try again because another tick held the lock. */
   async function tick(repo) {
     let command
@@ -440,13 +610,7 @@ export function createDispatcher({
     }
     const argv = [...command, 'dispatch', '--apply', '--repo', repo, '--json']
     log(`tick for ${repo}: ${argv.join(' ')}`)
-    startHeartbeat()
-    let result
-    try {
-      result = await run(argv, { timeoutMs: TICK_DEADLINE_MS, env, platform })
-    } finally {
-      stopHeartbeat()
-    }
+    const result = await run(argv, { timeoutMs: TICK_DEADLINE_MS, env, platform })
     if (result.code === LOCK_HELD_EXIT) {
       log(`tick for ${repo}: another tick holds the lock: ${firstLine(result.stderr)}`)
       return true
@@ -556,7 +720,43 @@ export function createDispatcher({
 
   async function handleWorkspaceCreated(payload) {
     log(`workspace created: ${payload?.kind} ${payload?.path} (${payload?.branch ?? 'no branch'})`)
-    if (payload?.workspaceId && payload?.path) await remember(payload.workspaceId, payload.path)
+    if (payload?.workspaceId && payload?.path) {
+      guardPaths.set(payload.workspaceId, payload.path)
+      await remember(payload.workspaceId, payload.path)
+    }
+    // The event's id can differ from the id `workspace.list` gives the same path; list again.
+    if (host.has?.('workspace.list')) {
+      try {
+        await listWorkspaces()
+      } catch (error) {
+        log(`could not list workspaces after a creation: ${error.message}`)
+      }
+    }
+  }
+
+  /** Forgets a removed workspace and wakes its repository, whose line may have lost a launch. */
+  async function handleWorkspaceRemoved(payload) {
+    const workspaceId = payload?.workspaceId
+    const path = payload?.path ?? (workspaceId ? guardPaths.get(workspaceId) ?? known.get(workspaceId) : null)
+    log(`workspace removed: ${payload?.kind} ${path ?? workspaceId}`)
+    // Let the startup load settle first: it would otherwise re-add what is deleted here.
+    await remembered()
+    if (workspaceId) {
+      guardPaths.delete(workspaceId)
+      await forget(workspaceId)
+    }
+    if (path) {
+      removedAt.set(path, listSeq)
+      // Every id this path went by: an identity id from `workspace.list` as well as the event's.
+      for (const [id, p] of [...guardPaths]) if (p === path) guardPaths.delete(id)
+      let changed = false
+      for (const [id, p] of [...known]) if (p === path) changed = known.delete(id) || changed
+      if (changed) await store(`could not forget workspace ${workspaceId ?? path}`)
+      listed = { at: listed.at, workspaces: listed.workspaces.filter((w) => w.path !== path) }
+    }
+    const repo = path ? repositoryOf.get(path) : null
+    if (path) repositoryOf.delete(path)
+    if (repo) requestTick(repo)
   }
 
   const guarded = (name, handler) => (payload) =>
@@ -567,6 +767,9 @@ export function createDispatcher({
   return {
     onAgentStatusChanged: guarded('agent.status.changed', handleAgentStatus),
     onWorkspaceCreated: guarded('workspace.created', handleWorkspaceCreated),
+    onWorkspaceRemoved: guarded('workspace.removed', handleWorkspaceRemoved),
+    onLaunchBefore: guardLaunch,
+    startGuard,
     requestTick,
     /** Resolves once every handler and tick started so far has settled (for tests). */
     async settled() {
@@ -574,22 +777,42 @@ export function createDispatcher({
     },
     dispose() {
       for (const s of repos.values()) if (s.timer) clock.clearTimeout(s.timer)
-      if (heartbeat) clock.clearTimeout(heartbeat)
-      heartbeat = null
+      disposed = true
+      if (guardTimer) clock.clearTimeout(guardTimer)
+      guardTimer = null
     }
   }
 }
 
 let active = null
 
+/** The plugin's version from its manifest, for the heartbeat; null when it cannot be read. */
+function manifestVersion() {
+  try {
+    return JSON.parse(nodeFs.readFileSync(new URL('./orca-plugin.json', import.meta.url), 'utf8')).version ?? null
+  } catch {
+    return null
+  }
+}
+
 export default function activate(orca) {
-  active = createDispatcher({ host: orca.host, log: (message) => orca.log(message) })
+  active = createDispatcher({
+    host: orca.host,
+    log: (message) => orca.log(message),
+    pluginVersion: manifestVersion()
+  })
+  // Synchronous: the guard decides before any awaited call, so Orca's 2 s limit is never at stake.
+  orca.hooks.on('agent.launch.before', (event) => active.onLaunchBefore(event))
+  active.startGuard()
   // Handlers return at once: Orca waits on them, and a tick can take minutes.
   orca.events.on('agent.status.changed', (payload) => {
     active.onAgentStatusChanged(payload)
   })
   orca.events.on('workspace.created', (payload) => {
     active.onWorkspaceCreated(payload)
+  })
+  orca.events.on('workspace.removed', (payload) => {
+    active.onWorkspaceRemoved(payload)
   })
 }
 

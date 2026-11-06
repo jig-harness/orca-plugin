@@ -8,9 +8,9 @@ permissions:
   contents: read
 
 env:
-  # Orca v1.4.246, the release engines.orca names: its validator is the one that release enforces.
+  # Orca v1.4.248, the release engines.orca names: its validator is the one that release enforces.
   # Bump it deliberately, together with engines.orca when a newer field is used.
-  ORCA_REF: 55ccff19ad4cd8ba28b6f3d2be798c1e626a2c2c
+  ORCA_REF: 965978bc78bf03a6a43187c1ed28fcffe0e01bb5
 
 jobs:
   test:
