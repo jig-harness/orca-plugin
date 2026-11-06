@@ -42,6 +42,6 @@ changelog:
     files:
       - { path: orca-plugin.json, key: version }
   # What Orca installs: a change here ships only in a release.
-  release_paths: [main.mjs, lib/, orca-plugin.json]
+  release_paths: [main.mjs, lib/, panel/, orca-plugin.json]
   release:
     push: direct

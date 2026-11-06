@@ -22,6 +22,8 @@ This repository is an [Orca](https://www.onorca.dev) plugin for
 - **The launch hook never awaits.** It decides from what the worker already
   holds and from synchronous file reads, within Orca's two seconds.
 - **Plain JavaScript, no runtime dependencies.** ES modules, Node built-ins only.
+  `playwright-core`, for the panel's browser test, is the one development
+  dependency.
 - **One concern per pull request.** A pull request that moves code or docs
   changes no behaviour, and the tests pass on every commit.
 - **Each fact is written once.** Users' facts go in the README, how it works in
@@ -31,6 +33,10 @@ This repository is an [Orca](https://www.onorca.dev) plugin for
 ## Checks
 
 - `node --test`: the tests (also run by `.github/workflows/validate.yml`).
+- `node scripts/build-panel.mjs`: rebuilds `panel/inbox.html` after a change
+  under `panel/src/`; CI fails on a stale one.
+- `npm ci && node tests/panel/harness.mjs`: the panel drawn in Chrome, light
+  and dark, from the fixtures (also run by CI's `panel` job).
 - `orca-ide plugin validate .` (`orca plugin validate .` off Linux): Orca's
   manifest checks.
 - `JIG_DIR=<jig checkout> bun --no-env-file tests/contracts/<script>.mjs`: the

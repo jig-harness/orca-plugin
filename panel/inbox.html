@@ -1,0 +1,512 @@
+<!doctype html>
+<!-- Built by scripts/build-panel.mjs from panel/src/. Edit the source, then run it. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>Jig</title>
+    <style>
+/* The inbox in Orca's right sidebar, 350 px by default. Colours come from Orca's --orca-*
+   frame variables; frames get no success or warning colour, so the panel mixes its own. */
+:root {
+  --fg: var(--orca-foreground, #0a0a0a);
+  --bg: var(--orca-background, #fff);
+  --mut: var(--orca-muted-foreground, #696969);
+  --line: var(--orca-border, #e5e5e5);
+  --card: var(--orca-card, #fff);
+  --soft: var(--orca-muted, #f5f5f5);
+  --primary: var(--orca-primary, #171717);
+  --primary-fg: var(--orca-primary-foreground, #fafafa);
+  --bad: var(--orca-destructive, #e40014);
+  --warn: color-mix(in oklab, #d97706 80%, var(--fg));
+  --radius: var(--orca-radius, 0.625rem);
+  color-scheme: light dark;
+}
+html.light { color-scheme: light; }
+html.dark { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-wrap: anywhere;
+}
+.m, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+.sm { font-size: 12px; }
+.mut { color: var(--mut); }
+.pad { padding: 12px; }
+p { margin: 0; }
+
+.bar {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.bar .name { font-weight: 600; }
+.bar button { margin-left: auto; }
+
+button {
+  font: inherit; font-size: 12px; color: var(--fg); background: var(--soft);
+  border: 1px solid var(--line); border-radius: calc(var(--radius) - 4px);
+  padding: 3px 8px; cursor: pointer; max-width: 100%;
+}
+button:hover { border-color: var(--mut); }
+button:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--orca-ring, #a1a1a1); outline-offset: 1px;
+}
+button.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+button.ghost { background: transparent; }
+
+.band { padding: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }
+.band .title { font-size: 15px; font-weight: 600; }
+.band.loud .title { color: var(--warn); }
+.tick.overdue { color: var(--bad); font-weight: 600; }
+
+.note { margin: 8px 12px 0; padding: 6px 8px; border-radius: calc(var(--radius) - 4px); background: var(--soft); }
+
+.group { padding: 0 12px; }
+.groupHead {
+  margin: 14px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--mut);
+}
+
+.need {
+  display: grid; gap: 4px; padding: 10px; margin-bottom: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.rowTop { display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--warn); }
+.tgt { font-weight: 600; }
+.end { margin-left: auto; white-space: nowrap; }
+.stage { color: var(--mut); }
+.ttl { font-weight: 500; }
+.q { font-weight: 500; }
+
+.acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.replies { display: grid; gap: 6px; margin-top: 4px; }
+.reply { display: grid; gap: 2px; }
+textarea {
+  width: 100%; resize: vertical; font: inherit; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--orca-input, var(--line));
+  border-radius: calc(var(--radius) - 4px); padding: 4px 6px;
+}
+
+details > summary { cursor: pointer; }
+.decisions { display: grid; gap: 4px; margin-top: 4px; }
+.decision { border-left: 2px solid var(--line); padding-left: 8px; }
+.decision > summary { list-style-position: outside; }
+.decision .q { font-size: 12px; }
+.md { margin-top: 4px; display: grid; gap: 4px; font-size: 12px; }
+.md h4 {
+  margin: 6px 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--mut);
+}
+.md ul { margin: 0; padding-left: 16px; display: grid; gap: 2px; }
+.md code, .kv .m { background: var(--soft); border-radius: 3px; padding: 0 3px; }
+
+.fold > summary { color: var(--mut); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: 4px 0 0; }
+.kv dt { color: var(--mut); }
+.kv dd { margin: 0; min-width: 0; }
+
+.empty { padding: 24px 12px; display: grid; gap: 4px; text-align: center; }
+.empty.bad b { color: var(--bad); }
+    </style>
+  </head>
+  <body>
+    <nav class="bar">
+      <span class="name">Inbox</span>
+      <button type="button" id="refresh" class="ghost sm" title="Read the line again now">Read again</button>
+    </nav>
+    <main id="app" aria-live="polite"></main>
+    <script type="module">
+// panel/src/inbox.mjs
+// The inbox, as pure functions of what the worker's `line.get` answers: what needs the person,
+// in the order and the words of the dashboard's What needs you (Jig's dashboard/src/needs-view.ts),
+// drawn as HTML text. Nothing here reaches Orca; app.mjs wires it to the frame.
+
+/** The causes a person decides; every other need is one to check. */
+const TO_DECIDE = new Set(['parked', 'needs-person', 'stopped-unknown'])
+
+/** Each stage's mark, as the dashboard draws it. */
+const STAGES = { pickup: '+', rearm: '↻', takeover: '⇄', followup: '»', notify: '*', steer: '^' }
+
+const MINUTE_MS = 60_000
+
+/** Text made safe to put in HTML, attributes included. */
+function esc(value) {
+  return String(value ?? '').replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+  )
+}
+
+/** A number of whole minutes as the dashboard says it: `47 min`, `1 h 17 min`, `3 d`. */
+function span(minutes) {
+  const whole = Math.max(0, Math.floor(minutes))
+  if (whole < 60) return `${whole} min`
+  const hours = Math.floor(whole / 60)
+  const rest = whole % 60
+  if (hours >= 48) return `${Math.floor(hours / 24)} d`
+  return `${hours} h${rest > 0 ? ` ${rest} min` : ''}`
+}
+
+/** How long ago a time was, in whole minutes; `?` when it does not read. */
+function ago(iso, nowMs) {
+  const at = Date.parse(iso)
+  return Number.isFinite(at) ? span((nowMs - at) / MINUTE_MS) : '?'
+}
+
+/** `1 session`, `3 sessions`. */
+function plural(n, one, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`
+}
+
+function recordedWord(need) {
+  if (need.cause === 'parked') return 'parked for a person'
+  if (need.cause === 'assigner-cannot-write') return 'assigner cannot write'
+  return need.cause
+}
+
+function goLabel(need) {
+  if (need.pr === null) return 'Open in the tracker'
+  if (need.cause === 'needs-person') return 'Read the handoff on the pull request'
+  if (['followup-failed', 'nudge-unanswered', 'stopped-unknown'].includes(need.cause))
+    return 'Open the pull request'
+  return 'Answer on the pull request'
+}
+
+const byAge = (a, b) => Date.parse(a.since) - Date.parse(b.since)
+
+/** The needs in the dashboard's groups: to decide, then to check, oldest first in each. */
+function groups(needs) {
+  return [
+    { head: 'To decide, on the pull request', needs: needs.filter((n) => TO_DECIDE.has(n.cause)).sort(byAge) },
+    { head: 'To check', needs: needs.filter((n) => !TO_DECIDE.has(n.cause)).sort(byAge) }
+  ].filter((g) => g.needs.length > 0)
+}
+
+/** The decision keys a person answers, once each. */
+function answerKeys(need) {
+  return [...new Set((need.decisions ?? []).map((d) => d.key))]
+}
+
+/** The answer line the dashboard copies: `answer <key>: <reply>`, one per key, blank-line apart. */
+function answerText(keys, replies) {
+  return keys.map((key, i) => `answer ${key}: ${(replies[i] ?? '').trim()}`).join('\n\n')
+}
+
+/** Only the forge's or tracker's own https link opens; anything else is not a link. */
+function openableUrl(url) {
+  return typeof url === 'string' && /^https:\/\/[^/\s]+\//i.test(url) ? url : null
+}
+
+/** A need's key across reads, for its drafts and its open folds. */
+function needKey(need) {
+  return `${need.repo} ${need.target} ${need.cause}`
+}
+
+/** A draft's or a decision's key: the need's key and the decision's, on two lines. */
+function draftKey(need, key) {
+  return `${needKey(need)}\n${key}`
+}
+
+/**
+ * Enough Markdown for a framed decision: headings, bullets, bold and code. Raw HTML stays text
+ * and nothing becomes a link, since the text comes from pull requests.
+ */
+function markdown(lines) {
+  const inline = (s) =>
+    esc(s)
+      .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+  let html = ''
+  let list = false
+  for (const line of lines) {
+    const bullet = /^\s*[-*] (.*)/.exec(line)
+    if (!bullet && list) {
+      html += '</ul>'
+      list = false
+    }
+    const heading = /^#{1,6} (.*)/.exec(line)
+    if (heading) html += `<h4>${inline(heading[1])}</h4>`
+    else if (bullet) {
+      if (!list) html += '<ul>'
+      list = true
+      html += `<li>${inline(bullet[1])}</li>`
+    } else if (line.trim()) html += `<p>${inline(line)}</p>`
+  }
+  return html + (list ? '</ul>' : '')
+}
+
+/** The head of the inbox: the line's answer to whether anything needs the person, and its tick. */
+function headHtml(answer, nowMs) {
+  const { line } = answer
+  const needs = line.needs
+  const interval = Number.isFinite(line.intervalMs) && line.intervalMs > 0 ? line.intervalMs : null
+  const age = nowMs - Date.parse(line.finishedAt)
+  const overdue = interval !== null && age > 2 * interval
+  let title
+  let sub
+  if (needs.length > 0) {
+    const ordered = groups(needs).flatMap((g) => g.needs)
+    const oldest = Math.min(...needs.map((n) => Date.parse(n.since)))
+    title = needs.length === 1 ? '1 needs a person.' : `${needs.length} need a person.`
+    sub = `Oldest ${span((nowMs - oldest) / MINUTE_MS)}. First: ${ordered[0].target}, ${recordedWord(ordered[0])}.`
+  } else {
+    title = 'Nothing needs a person.'
+    sub = `${plural(line.sessions, 'session')} in a slot; ${line.queue > 0 ? `${plural(line.queue, 'item')} queued` : 'queue empty'}.`
+  }
+  return `<header class="band${needs.length > 0 ? ' loud' : ''}">
+    <p class="title">${esc(title)}</p>
+    <p class="sm mut">${esc(sub)}</p>
+    <p class="sm tick${overdue ? ' overdue' : ' mut'}" title="${esc(`Tick ${line.runId}, finished ${line.finishedAt}`)}">${
+      overdue
+        ? `Tick overdue: the newest finished ${esc(ago(line.finishedAt, nowMs))} ago, past twice the ${esc(span(interval / MINUTE_MS))} interval.`
+        : `Tick finished ${esc(ago(line.finishedAt, nowMs))} ago.`
+    }</p>
+  </header>`
+}
+
+function decisionHtml(need, decision, open) {
+  const lines = Array.isArray(decision.lines) ? decision.lines : []
+  const named = decision.decisionClass ? `${decision.decisionClass}, ` : ''
+  return `<details class="decision" data-fold="${esc(draftKey(need, decision.key))}"${open ? ' open' : ''}>
+    <summary><span class="q">${esc(decision.question ?? `Decision ${decision.key}`)}</span>
+      <span class="sm mut"> ${esc(named)}${esc(decision.kind)} <span class="m">${esc(decision.key)}</span></span></summary>
+    ${lines.length > 0 ? `<div class="md">${markdown(lines)}</div>` : '<p class="sm mut">The drive framed no question for this decision.</p>'}
+  </details>`
+}
+
+function repliesHtml(need, drafts) {
+  const keys = answerKeys(need)
+  return `<div class="replies">${keys
+    .map(
+      (key) => `<label class="reply"><span class="sm mut">Reply to <span class="m">${esc(key)}</span></span>
+        <textarea rows="2" data-draft="${esc(draftKey(need, key))}" placeholder="Your answer, such as an option and why">${esc(drafts.get(draftKey(need, key)) ?? '')}</textarea></label>`
+    )
+    .join('')}
+    <p class="sm mut">Kept only while this panel stays open. Copy takes <span class="m">answer ${esc(keys[0])}: …</span> with your reply, to paste as a comment on the pull request.</p>
+  </div>`
+}
+
+/**
+ * One need as the inbox draws it. `drafts` holds the replies typed so far, by `draftKey`, and
+ * `replying` the keys of the needs whose reply boxes are open. The `first` need, the one the
+ * head names, opens its first decision.
+ */
+function needHtml(need, nowMs, { drafts = new Map(), replying = new Set(), first: isFirst = false } = {}) {
+  // A park's decisions carry its questions and recommendations; any other need says its reason.
+  const first = need.decisions?.[0]
+  const mark = STAGES[need.stage] ?? ''
+  const url = openableUrl(need.url)
+  const keys = answerKeys(need)
+  const drafted = keys.some((k) => (drafts.get(draftKey(need, k)) ?? '').trim() !== '')
+  const writing = replying.has(needKey(need))
+  const open = Array.isArray(need.open) ? need.open : []
+  const workspaceButtons = open
+    .map(
+      (path) =>
+        `<button type="button" data-open-workspace="${esc(path)}" title="${esc(path)}">${
+          open.length > 1 ? `Open ${esc(path.split('/').filter(Boolean).pop())}` : 'Open the workspace'
+        }</button>`
+    )
+    .join('')
+  return `<article class="need" data-need="${esc(needKey(need))}">
+    <div class="rowTop"><span class="dot"></span><span class="tgt">${esc(need.target)}</span>
+      <span class="m sm mut end">${esc(ago(need.since, nowMs))}</span></div>
+    <div class="sm"><span class="m mut">${esc(need.repo)}</span> <span class="stage" title="${esc(need.stage)}">${esc(mark ? `${mark} ${need.stage}` : need.stage)}</span></div>
+    ${need.title ? `<div class="sm ttl">${esc(need.title)}</div>` : ''}
+    <div class="sm"><span class="m">${esc(recordedWord(need))}</span><span class="mut">${
+      first ? esc(`${first.decisionClass ? `, class ${first.decisionClass}` : ''}, ${first.kind}`) : ''
+    }</span>${keys.length > 1 ? ` <b>· ${keys.length} to answer</b>` : ''}</div>
+    ${first ? '' : `<p class="q">${esc(need.reason)}</p>`}
+    <div class="acts">
+      ${url ? `<button type="button" class="primary" data-open-url="${esc(url)}">${esc(goLabel(need))} ↗</button>` : ''}
+      ${!url && need.url === null ? `<span class="sm mut">No tracker link: look up ${esc(need.target)} in the tracker.</span>` : ''}
+      ${keys.length > 0 ? `<button type="button" data-copy-answer="${esc(needKey(need))}">${drafted ? 'Copy answer' : 'Copy answer line'}</button>
+        <button type="button" class="ghost" aria-expanded="${writing}" data-reply="${esc(needKey(need))}">${writing ? 'Hide reply' : drafted ? 'Edit reply' : 'Write reply'}</button>` : ''}
+      ${workspaceButtons}
+    </div>
+    ${keys.length > 0 && writing ? repliesHtml(need, drafts) : ''}
+    ${(need.decisions ?? []).length > 0 ? `<div class="decisions">${need.decisions.map((d, i) => decisionHtml(need, d, isFirst && i === 0)).join('')}</div>` : ''}
+    <details class="fold" data-fold="${esc(`${needKey(need)}\ndetails`)}"><summary class="sm">Details</summary>
+      <dl class="kv sm">
+        <dt>since</dt><dd class="m">${esc(need.since)}</dd>
+        ${first ? `<dt>reason</dt><dd>${esc(need.reason)}</dd>` : ''}
+        ${need.url ? `<dt>link</dt><dd class="m">${esc(need.url)}</dd>` : ''}
+        ${need.notified ? `<dt>notified</dt><dd>${esc(need.notified.at ? `${need.notified.at}, to its workspace` : need.notified.outcome)}</dd>` : ''}
+        ${(need.workspaces ?? []).map((p, i) => `<dt>workspace ${i + 1}</dt><dd class="m">${esc(p)}</dd>`).join('')}
+      </dl>
+    </details>
+  </article>`
+}
+
+/** The whole panel for one `line.get` answer. */
+function panelHtml(answer, { nowMs, drafts = new Map(), replying = new Set(), note = null } = {}) {
+  const noteHtml = note ? `<div class="note sm" role="status">${esc(note)}</div>` : ''
+  if (answer.state === 'no-tick')
+    return `${noteHtml}<div class="empty"><b>No tick has run on this host.</b><p class="sm mut">The timer writes the first line at its first tick.</p></div>`
+  if (answer.state === 'too-old')
+    return `${noteHtml}<div class="empty"><b>This jig is too old for the panel.</b><p class="sm mut">It has no <span class="m">jig dispatch line</span>; update the jig plugin to see the line here.</p></div>`
+  if (answer.state === 'not-found')
+    return `${noteHtml}<div class="empty bad"><b>Jig not found.</b><p class="sm">${esc(answer.why)}</p></div>`
+  if (answer.state !== 'line')
+    return `${noteHtml}<div class="empty bad"><b>The line could not be read.</b><p class="sm">${esc(answer.why ?? 'no reason was given.')}</p></div>`
+  const ordered = groups(answer.line.needs)
+  const lead = ordered[0]?.needs[0]
+  const body = ordered
+    .map(
+      (g) => `<section class="group"><h2 class="groupHead">${esc(g.head)} <span class="mut">${g.needs.length}</span></h2>${g.needs
+        .map((n) => needHtml(n, nowMs, { drafts, replying, first: n === lead }))
+        .join('')}</section>`
+    )
+    .join('')
+  return `${headHtml(answer, nowMs)}${noteHtml}${body}`
+}
+
+// panel/src/app.mjs
+// The panel in Orca's frame: asks the worker for the line, draws the inbox, and answers its
+// buttons. The pull request opens through `orca.shell.openExternal`, which needs the click; the
+// workspace opens through the worker; the answer line is copied here. Drafts live only in this
+// page, so the panel stores nothing.
+
+/** How often the open panel reads again when no tick told it to. */
+const POLL_MS = 60_000
+/** The worker's read may run 30 s; the request waits a little longer. */
+const REQUEST_TIMEOUT_MS = 45_000
+
+const orca = window.orca
+const app = document.getElementById('app')
+
+const view = {
+  answer: null,
+  /** `performance.now()` at the read, so the line's clock moves on with this page's. */
+  readAt: 0,
+  drafts: new Map(),
+  replying: new Set(),
+  folds: new Map(),
+  note: null,
+  pending: false
+}
+
+const request = (name, input) => orca.plugin.request(name, input, { timeoutMs: REQUEST_TIMEOUT_MS })
+
+function nowMs() {
+  const said = Date.parse(view.answer?.now ?? '')
+  return Number.isFinite(said) ? said + (performance.now() - view.readAt) : Date.now()
+}
+
+function render() {
+  // A redraw would take the cursor out of a reply being typed; it waits for the box to lose focus.
+  if (document.activeElement?.tagName === 'TEXTAREA' && app.contains(document.activeElement)) {
+    view.pending = true
+    return
+  }
+  view.pending = false
+  if (!view.answer) return
+  for (const fold of app.querySelectorAll('details[data-fold]')) view.folds.set(fold.dataset.fold, fold.open)
+  app.innerHTML = panelHtml(view.answer, {
+    nowMs: nowMs(),
+    drafts: view.drafts,
+    replying: view.replying,
+    note: view.note
+  })
+  for (const fold of app.querySelectorAll('details[data-fold]'))
+    if (view.folds.has(fold.dataset.fold)) fold.open = view.folds.get(fold.dataset.fold)
+}
+
+async function load(fresh = false) {
+  try {
+    const answer = await request('line.get', fresh ? { fresh: true } : {})
+    view.answer = answer
+    view.readAt = performance.now()
+  } catch (error) {
+    view.answer = { state: 'unreadable', why: `the worker did not answer (${error?.code ?? 'error'}: ${error?.message ?? error}).` }
+  }
+  render()
+}
+
+function needOf(key) {
+  return view.answer?.line?.needs.find((n) => needKey(n) === key) ?? null
+}
+
+/** Copies `text` the one way a frame allows: `execCommand` inside the click. */
+function copy(text) {
+  const area = Object.assign(document.createElement('textarea'), { value: text })
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'
+  area.style.opacity = '0'
+  document.body.append(area)
+  area.select()
+  let done = false
+  try {
+    done = document.execCommand('copy')
+  } catch {
+    done = false
+  }
+  area.remove()
+  return done
+}
+
+function say(note) {
+  view.note = note
+  render()
+}
+
+app.addEventListener('input', (event) => {
+  const key = event.target?.dataset?.draft
+  if (key !== undefined) view.drafts.set(key, event.target.value)
+})
+
+app.addEventListener('focusout', () => {
+  if (view.pending) setTimeout(render, 0)
+})
+
+app.addEventListener('click', (event) => {
+  const button = event.target.closest('button')
+  if (!button || !app.contains(button)) return
+  const d = button.dataset
+  if (d.openUrl !== undefined) {
+    const url = openableUrl(d.openUrl)
+    if (!url) return say('Only an https link from the line opens.')
+    // Called inside the click: Orca opens a link only on the person's own press.
+    if (orca.shell?.openExternal)
+      orca.shell
+        .openExternal(url)
+        .then((r) => (r?.opened === false ? say('Not opened.') : undefined))
+        .catch((error) => say(`Orca did not open the link: ${error?.message ?? error}`))
+    else say(copy(url) ? 'This Orca client opens no links from a panel; the link is copied.' : `Open ${url}`)
+    return
+  }
+  if (d.copyAnswer !== undefined) {
+    const need = needOf(d.copyAnswer)
+    if (!need) return
+    const keys = answerKeys(need)
+    const text = answerText(keys, keys.map((k) => view.drafts.get(draftKey(need, k)) ?? ''))
+    return say(copy(text) ? `Copied the answer line for ${need.target}.` : 'The frame refused the copy.')
+  }
+  if (d.reply !== undefined) {
+    if (view.replying.has(d.reply)) view.replying.delete(d.reply)
+    else view.replying.add(d.reply)
+    return render()
+  }
+  if (d.openWorkspace !== undefined) {
+    request('workspace.open', { path: d.openWorkspace })
+      .then((r) => say(r?.opened ? null : `Not opened: ${r?.why ?? 'no reason was given.'}`))
+      .catch((error) => say(`Not opened: ${error?.message ?? error}`))
+  }
+})
+
+document.getElementById('refresh')?.addEventListener('click', () => {
+  view.note = null
+  load(true)
+})
+
+orca.plugin.on?.('line.changed', () => load())
+setInterval(() => load(), POLL_MS)
+app.innerHTML = '<p class="sm mut pad">Reading the line…</p>'
+load()
+    </script>
+  </body>
+</html>

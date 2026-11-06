@@ -8,8 +8,10 @@ description: How to load the plugin while you work on it, run its tests and Orca
 
 # Developing the plugin
 
-The worker is plain JavaScript ES modules with no dependencies, so there is
-nothing to install or build. Node 20 or later runs the tests.
+The worker is plain JavaScript ES modules with no dependencies, so it needs
+nothing installed or built. Node 20 or later runs the tests. The panel has
+one build step and one development dependency, for its browser test
+([The panel](#the-panel)).
 
 ## Tests
 
@@ -24,6 +26,22 @@ runs them on Node 20 and 24.
 `orca plugin test .` runs the same suite through Orca, with Orca's own Node
 when the one on `PATH` is older than 20.6. CI does not use it, because it
 needs Orca installed.
+
+## The panel
+
+```sh
+node scripts/build-panel.mjs           # after every change under panel/src/
+node scripts/build-panel.mjs --check   # what CI runs: is panel/inbox.html fresh?
+npm ci                                 # playwright-core, for the harness only
+node tests/panel/harness.mjs           # draws the panel in Chrome, checks it, writes shots
+```
+
+The harness drives the machine's Google Chrome (`CHROME_PATH` names
+another) and writes `tests/panel/shots/<scenario>.<theme>.png`, which git
+ignores. CI runs it in its own `panel` job and keeps the shots as the
+`panel-shots` artifact. `playwright-core` is a development dependency only:
+Orca installs the committed files and never runs `npm`. What the harness
+checks is in [panel.md](panel.md#tests).
 
 ## Orca's validator
 

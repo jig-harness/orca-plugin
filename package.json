@@ -1,0 +1,14 @@
+{
+  "name": "jig-orca-plugin",
+  "private": true,
+  "type": "module",
+  "description": "Development only: Orca installs the plugin's committed files and never this package's dependencies.",
+  "scripts": {
+    "test": "node --test",
+    "build:panel": "node scripts/build-panel.mjs",
+    "test:panel": "node tests/panel/harness.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "1.65.0"
+  }
+}

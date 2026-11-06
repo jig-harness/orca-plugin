@@ -8,11 +8,12 @@ description: The plugin's concerns, the workspace map they share, its timers, an
 
 # How the worker is built
 
-The plugin is one Orca worker (`execution: trusted-worker`) with no panel
-and no runtime dependencies. Orca starts it once and calls its default
-export, `activate(orca)`, which builds the worker's logic with
+The plugin is one Orca worker (`execution: trusted-worker`) and one panel,
+with no runtime dependencies. Orca starts the worker once and calls its
+default export, `activate(orca)`, which builds the worker's logic with
 `createDispatcher` and connects it to the events it listens for, the launch
-hook and the status bar item. Because the plugin has a hook and a status bar item, Orca keeps the
+hook, the status bar item and the panel's requests. The panel is built
+apart ([panel.md](panel.md)). Because the plugin has a hook and a status bar item, Orca keeps the
 worker running while the plugin is enabled.
 
 The plugin decides nothing Jig decides. It says when to run a tick and for
@@ -29,6 +30,7 @@ Claude Code or Codex.
 | Launch guard | `agent.launch.before` | Writes a launch marker, then refuses the launch if gc holds an admission for that worktree ([launch-guard.md](launch-guard.md)) |
 | Heartbeat | a timer | Writes the guard record's heartbeat and re-lists workspaces |
 | Status bar | the plugin's start, each tick, a timer | Reads `jig dispatch line --json` and updates the item ([dispatch-line.md](dispatch-line.md)) |
+| Panel | the panel's `line.get` and `workspace.open` requests | Hands the panel the status bar's newest read, and opens a workspace by its path ([panel.md](panel.md)) |
 
 `createDispatcher` takes everything the worker touches as arguments: the
 host API, the log, a program runner, the file system, a clock, the

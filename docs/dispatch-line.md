@@ -24,7 +24,12 @@ The Jig command the ticks use (the `jigCommand` setting, else the installed
 `dispatch line --json`, without a shell. One read at a time, stopped after 30
 seconds, with at most 4 MiB of output read. It reads the line when the worker
 starts, after every tick the plugin runs, and every minute. An Orca without
-`statusBar.update`, such as orcad, reads nothing.
+`statusBar.update`, such as orcad, reads nothing for the status bar.
+
+The panel reads through the same reads: it is handed the newest one when it
+is under a minute old, and otherwise waits for the next
+([panel.md](panel.md#the-workers-requests)). It depends on the same parts of
+the answer, and on each need's fields as `LineNeed` defines them.
 
 ## What it depends on
 
