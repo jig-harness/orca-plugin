@@ -15,43 +15,6 @@ import { createStatusBar } from './lib/status-bar.mjs'
 import { createWake } from './lib/wake.mjs'
 import { createWorkspaces } from './lib/workspaces.mjs'
 
-export {
-  GUARD_DENY_REASON,
-  GUARD_HEARTBEAT_MS,
-  defaultGuardDirectory,
-  guardKey,
-  heartbeatRecord,
-  launchMarker,
-  writeRecord
-} from './lib/guard.mjs'
-export {
-  JigCommandError,
-  KILL_GRACE_MS,
-  claudePluginDirectory,
-  codexPluginDirectory,
-  findOnPath,
-  runProgram,
-  splitCommand
-} from './lib/jig-command.mjs'
-export {
-  DEFAULT_DISPATCH_INTERVAL_MINUTES,
-  LINE_READ_DEADLINE_MS,
-  LINE_REFRESH_MS,
-  STATUS_ITEM_ID,
-  lineStatus,
-  statusText
-} from './lib/status-bar.mjs'
-export {
-  LOCK_HELD_RETRIES,
-  TICK_DEADLINE_MS,
-  TICK_WINDOW_MS,
-  WAKE_STATES,
-  receiptDetail,
-  receiptLine,
-  wakesDispatcher
-} from './lib/wake.mjs'
-export { mainCheckout } from './lib/workspaces.mjs'
-
 const realClock = {
   now: () => Date.now(),
   setTimeout: (fn, ms) => setTimeout(fn, ms),
