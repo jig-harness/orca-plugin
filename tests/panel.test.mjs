@@ -222,6 +222,45 @@ describe('the panel answer', () => {
     assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
     assert.ok(served.line.needs.length > 0 && served.line.needs.length < 3_000)
     assert.match(served.why, /left out/)
+    assert.equal(served.line.omitted, 3_000 - served.line.needs.length)
+    const html = panelHtml(served, { nowMs: Date.parse(served.now) })
+    assert.match(html, /role="alert"/)
+    assert.match(html, new RegExp(`${served.line.needs.length + served.line.omitted} need a person`))
+  })
+
+  test('clipping leaves paths, urls, times and causes as the line gave them', async () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    const longPath = `/work/${'p'.repeat(6_000)}`
+    need.decisions = []
+    need.workspaces = [longPath]
+    need.url = `https://example.test/${'u'.repeat(6_000)}`
+    need.reason = 'r'.repeat(1_100_000)
+    const served = await panelAnswer(kept(answer), async () => 'id')
+    const [cut] = served.line.needs
+    assert.equal(cut.url, need.url)
+    assert.equal(cut.since, need.since)
+    assert.equal(cut.cause, need.cause)
+    assert.deepEqual(cut.workspaces, [longPath])
+    assert.ok(cut.open.includes(longPath))
+    assert.ok(cut.reason.length < need.reason.length)
+  })
+
+  test('thousands of needs over the limit are bounded without serialising the answer per need', async () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    answer.value.line.needs = Array.from({ length: 20_000 }, (_, i) => ({
+      ...need,
+      decisions: [],
+      target: `t${i}`,
+      reason: 'r'.repeat(100),
+      extra: 'e'.repeat(200)
+    }))
+    const began = Date.now()
+    const served = await panelAnswer(kept(answer), idAt)
+    assert.ok(Date.now() - began < 5_000)
+    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
+    assert.ok(served.line.omitted > 0)
   })
 })
 

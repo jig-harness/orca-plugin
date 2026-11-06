@@ -120,23 +120,34 @@ export function markdown(lines) {
 export function headHtml(answer, nowMs) {
   const { line } = answer
   const needs = line.needs
+  const omitted = Number.isInteger(line.omitted) && line.omitted > 0 ? line.omitted : 0
+  const total = needs.length + omitted
   const interval = Number.isFinite(line.intervalMs) && line.intervalMs > 0 ? line.intervalMs : null
   const age = nowMs - Date.parse(line.finishedAt)
   const overdue = interval !== null && age > 2 * interval
   let title
   let sub
+  if (total > 0) {
+    title = total === 1 ? '1 needs a person.' : `${total} need a person.`
+  } else {
+    title = 'Nothing needs a person.'
+  }
   if (needs.length > 0) {
     const ordered = groups(needs).flatMap((g) => g.needs)
     const oldest = Math.min(...needs.map((n) => Date.parse(n.since)))
-    title = needs.length === 1 ? '1 needs a person.' : `${needs.length} need a person.`
     sub = `Oldest ${span((nowMs - oldest) / MINUTE_MS)}. First: ${ordered[0].target}, ${recordedWord(ordered[0])}.`
+  } else if (omitted > 0) {
+    sub = 'None of them fits in the answer.'
   } else {
-    title = 'Nothing needs a person.'
     sub = `${plural(line.sessions, 'session')} in a slot; ${line.queue > 0 ? `${plural(line.queue, 'item')} queued` : 'queue empty'}.`
   }
-  return `<header class="band${needs.length > 0 ? ' loud' : ''}">
+  return `<header class="band${total > 0 ? ' loud' : ''}">
     <p class="title">${esc(title)}</p>
-    <p class="sm mut">${esc(sub)}</p>
+    <p class="sm mut">${esc(sub)}</p>${
+      omitted > 0
+        ? `\n    <p class="sm warn" role="alert">${esc(`${omitted} of ${total} needs are left out because the line is too large to show; read them with the status bar or on the pull requests.`)}</p>`
+        : ''
+    }
     <p class="sm tick${overdue ? ' overdue' : ' mut'}" title="${esc(`Tick ${line.runId}, finished ${line.finishedAt}`)}">${
       overdue
         ? `Tick overdue: the newest finished ${esc(ago(line.finishedAt, nowMs))} ago, past twice the ${esc(span(interval / MINUTE_MS))} interval.`
