@@ -149,8 +149,21 @@ describe('the panel answer', () => {
   test('a kept answer\'s clock moves on by the time since its read', async () => {
     const fixture = fixtureAnswer('quiet')
     const said = Date.parse(fixture.value.now)
-    const served = await panelAnswer(kept(fixture, { readAt: 1_000 }), idAt, 1_000 + 59_000)
+    const served = await panelAnswer(kept(fixture, { readAt: 1_000 }), idAt, () => 1_000 + 59_000)
     assert.equal(Date.parse(served.now), said + 59_000)
+  })
+
+  test('the clock is read after the workspace lookups, which can take a while', async () => {
+    const fixture = fixtureAnswer('long-needs')
+    const said = Date.parse(fixture.value.now)
+    let ms = 1_000
+    const slow = async () => {
+      ms += 20_000
+      return null
+    }
+    const served = await panelAnswer(kept(fixture, { readAt: 1_000 }), slow, () => ms)
+    assert.ok(ms > 1_000, 'the fixture needs a workspace lookup to run')
+    assert.equal(Date.parse(served.now), said + (ms - 1_000))
   })
 
   test('a line carrying no interval gets the one the status bar used', async () => {
@@ -165,10 +178,24 @@ describe('the panel answer', () => {
     const [need] = answer.value.line.needs
     for (const d of need.decisions) d.lines = Array.from({ length: 200 }, () => 'x'.repeat(10_000))
     const served = await panelAnswer(kept(answer), idAt)
-    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES + 1000)
+    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
     const [cutNeed] = served.line.needs
     assert.deepEqual(cutNeed.decisions.map((d) => d.key), need.decisions.map((d) => d.key))
     for (const d of cutNeed.decisions) assert.match(d.lines.at(-1), /cut here/)
+  })
+
+  test('decision fields other than the lines are cut when the lines alone leave it over', async () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    for (const d of need.decisions) {
+      d.lines = ['a line']
+      d.question = 'q'.repeat(300_000)
+      d.recommendation = 'r'.repeat(300_000)
+    }
+    const served = await panelAnswer(kept(answer), idAt)
+    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
+    const [cutNeed] = served.line.needs
+    assert.deepEqual(cutNeed.decisions.map((d) => d.key), need.decisions.map((d) => d.key))
   })
 })
 
