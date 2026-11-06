@@ -3,8 +3,9 @@
 An [Orca](https://www.onorca.dev) plugin that wakes
 [Jig](https://github.com/jig-harness/jig)'s dispatcher when an agent in Orca
 stops for input or finishes, shows what the dispatcher did, refuses to
-start an agent in a worktree `jig gc` is removing, and shows the dispatch
-line in Orca's status bar.
+start an agent in a worktree `jig gc` is removing, shows the dispatch
+line in Orca's status bar, and opens a panel on what that line needs from
+you.
 
 Jig's dispatcher is a program that looks at a repository's tracker, its
 pull requests and the agent sessions running on this machine, and starts
@@ -79,6 +80,33 @@ It reads the line when the plugin starts, after every tick the plugin runs,
 and every minute ([what it reads](docs/dispatch-line.md)). Pressing the item
 opens nothing yet.
 
+## The panel
+
+The Jig panel, in Orca's right sidebar, opens on your inbox: everything on
+the dispatch line that waits on you, across repositories, as the
+dashboard's What needs you lists it. Decisions come first, then what to
+check, oldest first in each. On top it says how many need you and how long
+ago the newest tick finished, and whether that tick is overdue.
+
+Each need shows its target, repository, stage, title and what it waits on.
+A parked drive shows each decision it waits on, the first one opened. Its
+buttons:
+
+- **Answer on the pull request** (or open it, or the tracker item) opens
+  the link in your browser. Orca asks the first time the plugin opens a
+  host.
+- **Copy answer line** copies `answer <key>: <reply>` for each decision,
+  ready to paste as a comment on the pull request. **Write reply** opens a
+  box per decision; what you type there is kept only while the panel stays
+  open.
+- **Open the workspace** shows the Orca workspace that holds the work. It
+  appears only when the line names a workspace Orca knows on this machine.
+
+**Read again** reads the line now; the panel also reads it after each tick
+and every minute. In a web browser connected to `orca serve`, links are
+copied instead of opened. How the panel is built is in
+[docs/panel.md](docs/panel.md).
+
 ## What it does not do
 
 - It holds none of Jig's rules. What a tick starts, for which repository and
@@ -89,12 +117,13 @@ opens nothing yet.
   channel.
 - It does not replace the dispatcher's timer: the timer still catches what
   no status change announces, such as a merge or a new tracker item.
-- It has no panel. Jig's dashboard stays `jig dispatch dashboard`; the
-  status bar item is a count, not a view.
+- It does not answer for you. The panel copies an answer line; you post
+  it on the pull request. Jig's full dashboard stays
+  `jig dispatch dashboard`.
 - It runs ticks only for workspaces on this machine. A workspace on an SSH
   or WSL host is logged and skipped.
-- It contributes no skills to Orca, only the one hook above and the one
-  status bar item.
+- It contributes no skills to Orca, only the one hook above, the one
+  status bar item and the one panel.
 
 ## Requirements
 
@@ -147,9 +176,11 @@ approve it with (`--approve <fingerprint>`). Orca shows the same review
 under Settings → Plugins → Development folders.
 
 What it asks for: `agent:read` and `workspace:read` for the declared events and
-the workspace list, `notifications:show` for the receipt, `storage:own` for
-the workspaces it remembers, `settings:own` for its settings. The launch
-hook needs no capability; Orca lists it in the same review.
+the workspace list, `workspace:write` for the panel's Open the workspace,
+`notifications:show` for the receipt, `storage:own` for the workspaces it
+remembers, `settings:own` for its settings. The launch hook needs no
+capability; Orca lists it in the same review. A plugin that asks for more
+than an earlier version did is approved again.
 
 ## The settings
 

@@ -1,0 +1,255 @@
+{
+  "now": "2026-11-05T16:47:30.000Z",
+  "timeZone": "Asia/Jerusalem",
+  "plugin": "0.131.0",
+  "schema": 9,
+  "line": {
+    "version": 1,
+    "runId": "20261105T164500Z",
+    "startedAt": "2026-11-05T16:45:00.000Z",
+    "finishedAt": "2026-11-05T16:46:03.000Z",
+    "exitStatus": 0,
+    "apply": true,
+    "applyWithheld": null,
+    "intervalMs": 300000,
+    "longestTickMs": 120000,
+    "recentTicksMs": [
+      61000,
+      58000,
+      63000
+    ],
+    "plugin": "0.131.0",
+    "timeZone": "Asia/Jerusalem",
+    "accounts": [
+      {
+        "name": "work-a",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "work-b",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 1,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "codex-a",
+        "vendor": "codex",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      }
+    ],
+    "lastAccount": "work-a",
+    "sessions": [
+      {
+        "record": "20261105T160102Z-web-485",
+        "account": "work-b",
+        "vendor": "claude",
+        "repo": "example-org/web",
+        "stage": "rearm",
+        "target": "PR #485",
+        "pr": 485,
+        "item": null,
+        "url": "https://github.com/example-org/web/pull/485",
+        "title": "Cache the session lookup",
+        "createdAt": "2026-11-05T16:01:00.000Z",
+        "launch": "alive",
+        "launchReason": null,
+        "agent": null,
+        "round": 2,
+        "samples": [
+          {
+            "round": 1,
+            "threads": 6,
+            "at": "2026-11-05T16:01:00.000Z"
+          },
+          {
+            "round": 2,
+            "threads": 3,
+            "at": "2026-11-05T16:01:00.000Z"
+          }
+        ],
+        "heartbeat": "2026-11-05T16:44:00.000Z",
+        "passTimeoutSec": 2700,
+        "workspace": "/home/ophir/orca/workspaces/web/pr-485",
+        "replaces": null,
+        "episode": null,
+        "nudge": null,
+        "drifting": null,
+        "waiting": null
+      }
+    ],
+    "needs": [
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "jig-harness/jig",
+        "target": "PR #456",
+        "pr": 456,
+        "item": null,
+        "url": "https://github.com/jig-harness/jig/pull/456",
+        "title": "Give every station a constant address",
+        "since": "2026-11-05T09:12:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_kwDOa1, finding F-3, thread PRRT_kwDOa4: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_kwDOa1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should `jig ask` read session transcripts in this pull request, or records only?",
+              "",
+              "## Options",
+              "- **A: records only** what the design orders first. Changes: nothing more. Costs: no answer from a session that wrote nothing yet.",
+              "- **B: records, then transcripts behind `--transcripts`** Changes: a transcript reader and its tests. Costs: about 400 lines and a second review round.",
+              "",
+              "## Recommended",
+              "A, because the design orders `ask` before transcripts and the flag can come in its own step",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_kwDOa1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The address parser and the record resolver are implemented, with tests."
+            ],
+            "question": "Should `jig ask` read session transcripts in this pull request, or records only?",
+            "recommendation": "A, because the design orders `ask` before transcripts and the flag can come in its own step",
+            "decisionClass": "scope"
+          },
+          {
+            "key": "F-3",
+            "kind": "finding",
+            "lines": [
+              "## Question",
+              "Rename the `launch` table column `stage` to `station`, with a migration?",
+              "",
+              "## Options",
+              "- **A: rename now** Changes: one migration, every reader. Costs: a host on the old plugin cannot read the state database until it updates.",
+              "- **B: keep `stage` and map it in the resolver** Changes: one mapping. Costs: two words for one thing until a later release.",
+              "",
+              "## Recommended",
+              "B, because a rename breaks a host that has not updated",
+              "",
+              "## Class",
+              "destructive",
+              "",
+              "## Steps for a person",
+              "Comment `answer F-3: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The resolver reads `stage` today."
+            ],
+            "question": "Rename the `launch` table column `stage` to `station`, with a migration?",
+            "recommendation": "B, because a rename breaks a host that has not updated",
+            "decisionClass": "destructive"
+          },
+          {
+            "key": "PRRT_kwDOa4",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "What should a standing role without a key be called: `arbiter@jig` or `arbiter@jig#-`?",
+              "",
+              "## Options",
+              "- **A: `arbiter@jig`** Changes: the grammar allows an empty key. Costs: one more parse branch.",
+              "- **B: `arbiter@jig#-`** Changes: none. Costs: an odd-looking address people will mistype.",
+              "",
+              "## Recommended",
+              "A, because people type it",
+              "",
+              "## Class",
+              "naming",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_kwDOa4: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "Both forms parse in the tests; only one is accepted."
+            ],
+            "question": "What should a standing role without a key be called: `arbiter@jig` or `arbiter@jig#-`?",
+            "recommendation": "A, because people type it",
+            "decisionClass": "naming"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T09:15:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      }
+    ],
+    "queue": [],
+    "repos": [
+      {
+        "slug": "jig-harness/jig",
+        "path": "/home/ophir/dev/jig",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/web",
+        "path": "/home/ophir/dev/web",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/api",
+        "path": "/home/ophir/dev/api",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/infra",
+        "path": "/home/ophir/dev/infra",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      }
+    ]
+  }
+}

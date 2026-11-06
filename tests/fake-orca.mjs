@@ -1,6 +1,7 @@
 // The fakes the tests share: a fake Orca host, a fake clock, a fake process runner and a fake
 // file system, wired into a dispatcher by `harness`, and the fixtures the tests read.
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { createDispatcher } from '../main.mjs'
 import { guardKey } from '../lib/guard.mjs'
 
@@ -114,7 +115,8 @@ export function receipt(repo = REPO, extra = {}) {
  * `workspaces` what `workspace.created` or `workspace.list` would report. Every program run is
  * recorded; a tick waits for `release()` when `holdTicks` is set. With `statusBar`, Orca has
  * `statusBar.update`, each update is recorded, and a line read waits for `releaseLine()` when
- * `holdLines` is set.
+ * `holdLines` is set. With `canOpen`, Orca has `workspace.open`, and each id opened is recorded;
+ * every post to the panel is recorded too.
  */
 export function harness({
   files = [`${REPO}/.config/jig.yaml`, '/bin/bun', '/bin/claude', '/plugin/jig.ts'],
@@ -128,7 +130,8 @@ export function harness({
   statusBar = false,
   lineResult = () => ({ code: 0, stdout: JSON.stringify(lineAnswer()), stderr: '' }),
   holdLines = false,
-  intervalSetting = 5
+  intervalSetting = 5,
+  canOpen = false
 } = {}) {
   const clock = fakeClock()
   const logs = []
@@ -138,9 +141,13 @@ export function harness({
   const pending = []
   const pendingLines = []
   const items = []
+  const opened = []
+  const posts = []
   const host = {
     has: (method) =>
-      (list !== null && method === 'workspace.list') || (statusBar && method === 'statusBar.update'),
+      (list !== null && method === 'workspace.list') ||
+      (statusBar && method === 'statusBar.update') ||
+      (canOpen && method === 'workspace.open'),
     async call(method, params) {
       if (hostCall) {
         const answered = await hostCall(method, params)
@@ -163,6 +170,10 @@ export function harness({
         return { ok: true }
       }
       if (method === 'workspace.list') return { workspaces: list, truncated: false }
+      if (method === 'workspace.open') {
+        opened.push(params.workspaceId)
+        return { opened: true }
+      }
       throw Object.assign(new Error(`unexpected ${method}`), { code: 'unknown_method' })
     }
   }
@@ -208,7 +219,8 @@ export function harness({
     home: '/home/me',
     hostName: 'laptop',
     pid: 4242,
-    pluginVersion: '0.2.0'
+    pluginVersion: '0.2.0',
+    post: (name, data) => posts.push([name, data])
   })
   const ticks = () => runs.filter((argv) => argv.includes('dispatch') && !argv.includes('line'))
   const lineReads = () => runs.filter((argv) => argv.includes('dispatch') && argv.includes('line'))
@@ -223,6 +235,8 @@ export function harness({
     lineReads,
     runOptions,
     items,
+    opened,
+    posts,
     fs,
     /** Lets the oldest held tick finish. */
     release: () => pending.shift()?.(),
@@ -272,6 +286,12 @@ export function lineAnswer(line = {}) {
             }
     }
   }
+}
+
+/** A `GET /state` answer from tests/fixtures/, as `jig dispatch line --json` prints it. */
+export function fixtureAnswer(scenario) {
+  const value = JSON.parse(readFileSync(new URL(`./fixtures/state.${scenario}.json`, import.meta.url), 'utf8'))
+  return { ok: true, value }
 }
 
 export const printed = (answer) => () => ({ code: 0, stdout: JSON.stringify(answer), stderr: '' })

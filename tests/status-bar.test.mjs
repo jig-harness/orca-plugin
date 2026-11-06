@@ -6,6 +6,7 @@ import { KILL_GRACE_MS, runProgram } from '../lib/jig-command.mjs'
 import {
   LINE_READ_DEADLINE_MS,
   LINE_REFRESH_MS,
+  lineAnswer as readAnswer,
   lineStatus,
   statusText
 } from '../lib/status-bar.mjs'
@@ -292,6 +293,11 @@ describe('the status bar', () => {
       assert.equal(item.text, 'Jig line unreadable')
       assert.equal(item.tone, 'danger')
     }
+  })
+
+  test('a line with an unreadable finish time is not a line for the panel either', () => {
+    const answer = readAnswer(printed(lineAnswer({ finishedAt: 'invalid' }))())
+    assert.equal(answer.state, 'unreadable')
   })
 
   test('after dispose no read is published and none is started', async () => {

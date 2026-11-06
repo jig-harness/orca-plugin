@@ -1,0 +1,553 @@
+{
+  "now": "2026-11-05T16:47:30.000Z",
+  "timeZone": "Asia/Jerusalem",
+  "plugin": "0.131.0",
+  "schema": 9,
+  "line": {
+    "version": 1,
+    "runId": "20261105T164500Z",
+    "startedAt": "2026-11-05T16:45:00.000Z",
+    "finishedAt": "2026-11-05T16:46:03.000Z",
+    "exitStatus": 0,
+    "apply": true,
+    "applyWithheld": null,
+    "intervalMs": 300000,
+    "longestTickMs": 120000,
+    "recentTicksMs": [
+      61000,
+      58000,
+      63000
+    ],
+    "plugin": "0.131.0",
+    "timeZone": "Asia/Jerusalem",
+    "accounts": [
+      {
+        "name": "work-a",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "work-b",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "codex-a",
+        "vendor": "codex",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      }
+    ],
+    "lastAccount": "work-a",
+    "sessions": [],
+    "needs": [
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "example-org/web",
+        "target": "PR #456",
+        "pr": 456,
+        "item": null,
+        "url": "https://github.com/example-org/web/pull/456",
+        "title": "Retry the webhook on a 5xx",
+        "since": "2026-11-05T07:05:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_x1: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_x1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should retry the webhook on a 5xx also cover the admin pages?",
+              "",
+              "## Options",
+              "- **A: no** what the issue asks.",
+              "- **B: yes** one more page and its test.",
+              "",
+              "## Recommended",
+              "A, because the admin pages have their own issue",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_x1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The main change is implemented and its tests pass."
+            ],
+            "question": "Should retry the webhook on a 5xx also cover the admin pages?",
+            "recommendation": "A, because the admin pages have their own issue",
+            "decisionClass": "scope"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T07:05:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "example-org/api",
+        "target": "PR #1210",
+        "pr": 1210,
+        "item": null,
+        "url": "https://github.com/example-org/api/pull/1210",
+        "title": "Split the invoice table migration",
+        "since": "2026-11-05T07:40:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_x1: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_x1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should split the invoice table migration also cover the admin pages?",
+              "",
+              "## Options",
+              "- **A: no** what the issue asks.",
+              "- **B: yes** one more page and its test.",
+              "",
+              "## Recommended",
+              "A, because the admin pages have their own issue",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_x1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The main change is implemented and its tests pass."
+            ],
+            "question": "Should split the invoice table migration also cover the admin pages?",
+            "recommendation": "A, because the admin pages have their own issue",
+            "decisionClass": "scope"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T07:40:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "example-org/web",
+        "target": "PR #475",
+        "pr": 475,
+        "item": null,
+        "url": "https://github.com/example-org/web/pull/475",
+        "title": "Move the release notes to the docs site",
+        "since": "2026-11-05T08:15:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_x1: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_x1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should move the release notes to the docs site also cover the admin pages?",
+              "",
+              "## Options",
+              "- **A: no** what the issue asks.",
+              "- **B: yes** one more page and its test.",
+              "",
+              "## Recommended",
+              "A, because the admin pages have their own issue",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_x1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The main change is implemented and its tests pass."
+            ],
+            "question": "Should move the release notes to the docs site also cover the admin pages?",
+            "recommendation": "A, because the admin pages have their own issue",
+            "decisionClass": "scope"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T08:15:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "example-org/infra",
+        "target": "PR #95",
+        "pr": 95,
+        "item": null,
+        "url": "https://github.com/example-org/infra/pull/95",
+        "title": "Raise the runner disk quota",
+        "since": "2026-11-05T09:30:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_x1: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_x1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should raise the runner disk quota also cover the admin pages?",
+              "",
+              "## Options",
+              "- **A: no** what the issue asks.",
+              "- **B: yes** one more page and its test.",
+              "",
+              "## Recommended",
+              "A, because the admin pages have their own issue",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_x1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The main change is implemented and its tests pass."
+            ],
+            "question": "Should raise the runner disk quota also cover the admin pages?",
+            "recommendation": "A, because the admin pages have their own issue",
+            "decisionClass": "scope"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T09:30:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "jig-harness/jig",
+        "target": "PR #462",
+        "pr": 462,
+        "item": null,
+        "url": "https://github.com/jig-harness/jig/pull/462",
+        "title": "Fold the stood-down group to its count",
+        "since": "2026-11-05T10:02:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_x1: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_x1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should fold the stood-down group to its count also cover the admin pages?",
+              "",
+              "## Options",
+              "- **A: no** what the issue asks.",
+              "- **B: yes** one more page and its test.",
+              "",
+              "## Recommended",
+              "A, because the admin pages have their own issue",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_x1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The main change is implemented and its tests pass."
+            ],
+            "question": "Should fold the stood-down group to its count also cover the admin pages?",
+            "recommendation": "A, because the admin pages have their own issue",
+            "decisionClass": "scope"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T10:02:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "needs-person",
+        "stage": "rearm",
+        "repo": "example-org/web",
+        "target": "PR #479",
+        "pr": 479,
+        "item": null,
+        "url": "https://github.com/example-org/web/pull/479",
+        "title": "Cache the session lookup",
+        "since": "2026-11-05T10:50:00.000Z",
+        "reason": "drive ledger needs-person: stopped 14: only a person settles it (see the drive’s handoff)",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T10:50:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "needs-person",
+        "stage": "rearm",
+        "repo": "example-org/api",
+        "target": "PR #1205",
+        "pr": 1205,
+        "item": null,
+        "url": "https://github.com/example-org/api/pull/1205",
+        "title": "Rotate the signing key",
+        "since": "2026-11-05T11:05:00.000Z",
+        "reason": "drive ledger needs-person: stopped 14: only a person settles it (see the drive’s handoff)",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T11:05:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "stopped-unknown",
+        "stage": "rearm",
+        "repo": "jig-harness/jig",
+        "target": "PR #459",
+        "pr": 459,
+        "item": null,
+        "url": "https://github.com/jig-harness/jig/pull/459",
+        "title": "Read the guard record without awaiting",
+        "since": "2026-11-05T11:30:00.000Z",
+        "reason": "drive ledger stopped 3 with no class the dispatcher knows",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T11:30:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "followup-failed",
+        "stage": "followup",
+        "repo": "example-org/web",
+        "target": "PR #461",
+        "pr": 461,
+        "item": null,
+        "url": "https://github.com/example-org/web/pull/461",
+        "title": "Trim the checkout bundle",
+        "since": "2026-11-05T12:02:00.000Z",
+        "reason": "a follow-up claimed it 17h ago (comment 456) and has not marked it done",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T12:02:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "nudge-unanswered",
+        "stage": "steer",
+        "repo": "example-org/api",
+        "target": "PR #1199",
+        "pr": 1199,
+        "item": null,
+        "url": "https://github.com/example-org/api/pull/1199",
+        "title": "Retry on 429 with a backoff cap",
+        "since": "2026-11-05T12:40:00.000Z",
+        "reason": "the session was nudged with `continue` at 12:10 and has not moved since",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T12:40:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "stalled",
+        "stage": "pickup",
+        "repo": "example-org/api",
+        "target": "API-77",
+        "pr": null,
+        "item": "API-77",
+        "url": "https://linear.app/example/issue/API-77",
+        "title": "Add the audit export",
+        "since": "2026-11-05T13:25:00.000Z",
+        "reason": "a claimed item with no running session past stalled_after",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T13:25:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "double-claim",
+        "stage": "pickup",
+        "repo": "example-org/web",
+        "target": "WEB-418",
+        "pr": null,
+        "item": "WEB-418",
+        "url": "https://linear.app/example/issue/WEB-418",
+        "title": "Fix the login redirect",
+        "since": "2026-11-05T14:20:00.000Z",
+        "reason": "WEB-418 joins to 2 running sessions",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T14:20:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": [
+          "/home/ophir/orca/workspaces/web/web-418",
+          "/home/ophir/orca/workspaces/web/web-418-b"
+        ]
+      },
+      {
+        "cause": "assigner-cannot-write",
+        "stage": "pickup",
+        "repo": "example-org/infra",
+        "target": "INF-31",
+        "pr": null,
+        "item": "INF-31",
+        "url": "https://linear.app/example/issue/INF-31",
+        "title": "Mirror the base images",
+        "since": "2026-11-05T15:00:00.000Z",
+        "reason": "assigned by @someone-outside, who cannot write to example-org/infra",
+        "decisions": [],
+        "notified": {
+          "at": "2026-11-05T15:00:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      },
+      {
+        "cause": "parked",
+        "stage": "rearm",
+        "repo": "example-org/api",
+        "target": "PR #1222",
+        "pr": 1222,
+        "item": null,
+        "url": "https://github.com/example-org/api/pull/1222",
+        "title": "Name the tenant in the audit row",
+        "since": "2026-11-05T15:45:00.000Z",
+        "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_x1: a person answers",
+        "decisions": [
+          {
+            "key": "PRRT_x1",
+            "kind": "thread",
+            "lines": [
+              "## Question",
+              "Should name the tenant in the audit row also cover the admin pages?",
+              "",
+              "## Options",
+              "- **A: no** what the issue asks.",
+              "- **B: yes** one more page and its test.",
+              "",
+              "## Recommended",
+              "A, because the admin pages have their own issue",
+              "",
+              "## Class",
+              "scope",
+              "",
+              "## Steps for a person",
+              "Comment `answer PRRT_x1: <your choice>` on the pull request.",
+              "",
+              "## Already done",
+              "The main change is implemented and its tests pass."
+            ],
+            "question": "Should name the tenant in the audit row also cover the admin pages?",
+            "recommendation": "A, because the admin pages have their own issue",
+            "decisionClass": "scope"
+          }
+        ],
+        "notified": {
+          "at": "2026-11-05T15:45:00.000Z",
+          "outcome": "sent",
+          "workspace": null
+        },
+        "workspaces": []
+      }
+    ],
+    "queue": [],
+    "repos": [
+      {
+        "slug": "jig-harness/jig",
+        "path": "/home/ophir/dev/jig",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/web",
+        "path": "/home/ophir/dev/web",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/api",
+        "path": "/home/ophir/dev/api",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/infra",
+        "path": "/home/ophir/dev/infra",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      }
+    ]
+  }
+}

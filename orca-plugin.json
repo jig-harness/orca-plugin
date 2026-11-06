@@ -5,7 +5,7 @@
   "id": "jig",
   "name": "Jig",
   "version": "0.3.0",
-  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, refuses agent launches into a worktree jig gc is removing, and shows the dispatch line in the status bar.",
+  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, refuses agent launches into a worktree jig gc is removing, shows the dispatch line in the status bar, and opens a panel on what that line needs from you.",
   "repository": "https://github.com/jig-harness/orca-plugin",
   "license": "MIT",
   "engines": { "orca": ">=1.4.248" },
@@ -44,6 +44,9 @@
         "minimum": 1
       }
     ],
+    "panels": [
+      { "id": "inbox", "title": "Jig", "icon": "bell", "entry": "panel/inbox.html", "ui": "html" }
+    ],
     "statusBarItems": [
       {
         "id": "line",
@@ -55,6 +58,7 @@
   },
   "capabilities": [
     { "kind": "workspace:read" },
+    { "kind": "workspace:write" },
     { "kind": "agent:read" },
     { "kind": "notifications:show" },
     { "kind": "storage:own" },

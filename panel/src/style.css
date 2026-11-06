@@ -1,0 +1,106 @@
+/* The inbox in Orca's right sidebar, 350 px by default. Colours come from Orca's --orca-*
+   frame variables; frames get no success or warning colour, so the panel mixes its own. */
+:root {
+  --fg: var(--orca-foreground, #0a0a0a);
+  --bg: var(--orca-background, #fff);
+  --mut: var(--orca-muted-foreground, #696969);
+  --line: var(--orca-border, #e5e5e5);
+  --card: var(--orca-card, #fff);
+  --soft: var(--orca-muted, #f5f5f5);
+  --primary: var(--orca-primary, #171717);
+  --primary-fg: var(--orca-primary-foreground, #fafafa);
+  --bad: var(--orca-destructive, #e40014);
+  --warn: color-mix(in oklab, #d97706 80%, var(--fg));
+  --radius: var(--orca-radius, 0.625rem);
+  color-scheme: light dark;
+}
+html.light { color-scheme: light; }
+html.dark { color-scheme: dark; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body {
+  font: 13px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow-wrap: anywhere;
+}
+.m, code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.92em; }
+.sm { font-size: 12px; }
+.mut { color: var(--mut); }
+.pad { padding: 12px; }
+p { margin: 0; }
+
+.bar {
+  position: sticky; top: 0; z-index: 1;
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.bar .name { font-weight: 600; }
+.bar button { margin-left: auto; }
+
+button {
+  font: inherit; font-size: 12px; color: var(--fg); background: var(--soft);
+  border: 1px solid var(--line); border-radius: calc(var(--radius) - 4px);
+  padding: 3px 8px; cursor: pointer; max-width: 100%;
+}
+button:hover { border-color: var(--mut); }
+button:focus-visible, textarea:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--orca-ring, #a1a1a1); outline-offset: 1px;
+}
+button.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+button.ghost { background: transparent; }
+
+.band { padding: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }
+.band .title { font-size: 15px; font-weight: 600; }
+.band.loud .title { color: var(--warn); }
+.warn { color: var(--warn); font-weight: 600; }
+.tick.overdue { color: var(--bad); font-weight: 600; }
+
+.note { margin: 8px 12px 0; padding: 6px 8px; border-radius: calc(var(--radius) - 4px); background: var(--soft); }
+
+.group { padding: 0 12px; }
+.groupHead {
+  margin: 14px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--mut);
+}
+
+.need {
+  display: grid; gap: 4px; padding: 10px; margin-bottom: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+}
+.rowTop { display: flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--warn); }
+.tgt { font-weight: 600; }
+.end { margin-left: auto; white-space: nowrap; }
+.stage { color: var(--mut); }
+.ttl { font-weight: 500; }
+.q { font-weight: 500; }
+
+.acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+
+.replies { display: grid; gap: 6px; margin-top: 4px; }
+.reply { display: grid; gap: 2px; }
+textarea {
+  width: 100%; resize: vertical; font: inherit; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--orca-input, var(--line));
+  border-radius: calc(var(--radius) - 4px); padding: 4px 6px;
+}
+
+details > summary { cursor: pointer; }
+.decisions { display: grid; gap: 4px; margin-top: 4px; }
+.decision { border-left: 2px solid var(--line); padding-left: 8px; }
+.decision > summary { list-style-position: outside; }
+.decision .q { font-size: 12px; }
+.md { margin-top: 4px; display: grid; gap: 4px; font-size: 12px; }
+.md h4 {
+  margin: 6px 0 0; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--mut);
+}
+.md ul { margin: 0; padding-left: 16px; display: grid; gap: 2px; }
+.md code, .kv .m { background: var(--soft); border-radius: 3px; padding: 0 3px; }
+
+.fold > summary { color: var(--mut); }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 2px 8px; margin: 4px 0 0; }
+.kv dt { color: var(--mut); }
+.kv dd { margin: 0; min-width: 0; }
+
+.empty { padding: 24px 12px; display: grid; gap: 4px; text-align: center; }
+.empty.bad b { color: var(--bad); }

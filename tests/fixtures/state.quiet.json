@@ -1,0 +1,169 @@
+{
+  "now": "2026-11-05T16:47:30.000Z",
+  "timeZone": "Asia/Jerusalem",
+  "plugin": "0.131.0",
+  "schema": 9,
+  "line": {
+    "version": 1,
+    "runId": "20261105T164500Z",
+    "startedAt": "2026-11-05T16:45:00.000Z",
+    "finishedAt": "2026-11-05T16:46:03.000Z",
+    "exitStatus": 0,
+    "apply": true,
+    "applyWithheld": null,
+    "intervalMs": 300000,
+    "longestTickMs": 120000,
+    "recentTicksMs": [
+      61000,
+      58000,
+      63000
+    ],
+    "plugin": "0.131.0",
+    "timeZone": "Asia/Jerusalem",
+    "accounts": [
+      {
+        "name": "work-a",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 1,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "work-b",
+        "vendor": "claude",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      },
+      {
+        "name": "codex-a",
+        "vendor": "codex",
+        "cap": 2,
+        "held": 0,
+        "wall": null,
+        "wallUnrecorded": false,
+        "notAdmitted": null
+      }
+    ],
+    "lastAccount": "work-a",
+    "sessions": [
+      {
+        "record": "20261105T162002Z-jig-471",
+        "account": "work-a",
+        "vendor": "claude",
+        "repo": "jig-harness/jig",
+        "stage": "rearm",
+        "target": "PR #471",
+        "pr": 471,
+        "item": null,
+        "url": "https://github.com/jig-harness/jig/pull/471",
+        "title": "Print the newest line as JSON",
+        "createdAt": "2026-11-05T16:20:00.000Z",
+        "launch": "alive",
+        "launchReason": null,
+        "agent": null,
+        "round": 2,
+        "samples": [
+          {
+            "round": 1,
+            "threads": 4,
+            "at": "2026-11-05T16:20:00.000Z"
+          },
+          {
+            "round": 2,
+            "threads": 1,
+            "at": "2026-11-05T16:20:00.000Z"
+          }
+        ],
+        "heartbeat": "2026-11-05T16:44:00.000Z",
+        "passTimeoutSec": 2700,
+        "workspace": "/home/ophir/orca/workspaces/jig/pr-471",
+        "replaces": null,
+        "episode": null,
+        "nudge": null,
+        "drifting": null,
+        "waiting": null
+      }
+    ],
+    "needs": [],
+    "queue": [
+      {
+        "source": "assigned",
+        "group": "held",
+        "repo": "example-org/web",
+        "target": "WEB-512",
+        "pr": null,
+        "item": "WEB-512",
+        "url": "https://linear.app/example/issue/WEB-512",
+        "title": "Show the invoice total on the receipt",
+        "why": "assigned to the factory identity; waits for a free slot after PR #471",
+        "stale": false,
+        "assignedBy": "ophir-docomply",
+        "hold": null,
+        "launch": null
+      }
+    ],
+    "repos": [
+      {
+        "slug": "jig-harness/jig",
+        "path": "/home/ophir/dev/jig",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/web",
+        "path": "/home/ophir/dev/web",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/api",
+        "path": "/home/ophir/dev/api",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      },
+      {
+        "slug": "example-org/infra",
+        "path": "/home/ophir/dev/infra",
+        "stages": [
+          "rearm",
+          "pickup",
+          "followup",
+          "notify",
+          "steer"
+        ],
+        "refused": null,
+        "failedReads": [],
+        "notes": []
+      }
+    ]
+  }
+}

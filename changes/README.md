@@ -13,7 +13,7 @@ it and deletes the notes; the release commit is tagged once its checks pass.
 
 CHANGELOG.md is read by the people who install the plugin in Orca.
 
-- **A note with `release`:** any change to `main.mjs`, `lib/` or
+- **A note with `release`:** any change to `main.mjs`, `lib/`, `panel/` or
   `orca-plugin.json`, since Orca receives the plugin only as a new version.
   The branch check fails without one.
 - **A note without `release`:** a change to the README that changes what a

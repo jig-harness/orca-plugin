@@ -30,6 +30,33 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - run: node --test
+      # The panel's entry is the built file; it must be what panel/src/ builds.
+      - run: node scripts/build-panel.mjs --check
+
+  # The panel drawn in Chrome at 350 px, light and dark, from the fixtures: an HTML panel has no
+  # `orca plugin check` or `shot --scenario`, so this is its test. playwright-core is the
+  # repository's only dependency, for this job alone; it drives the runner's own Chrome.
+  panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node tests/panel/harness.mjs
+      - name: Keep the shots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: panel-shots
+          path: tests/panel/shots/
+          if-no-files-found: warn
+          retention-days: 14
 
   validate:
     runs-on: ubuntu-latest
