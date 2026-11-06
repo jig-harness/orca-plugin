@@ -197,6 +197,32 @@ describe('the panel answer', () => {
     const [cutNeed] = served.line.needs
     assert.deepEqual(cutNeed.decisions.map((d) => d.key), need.decisions.map((d) => d.key))
   })
+
+  test('a need whose own text is over the limit is cut, with no decisions at all', async () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    need.decisions = []
+    need.reason = 'r'.repeat(1_100_000)
+    const served = await panelAnswer(kept(answer), idAt)
+    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
+    assert.equal(served.state, 'line')
+  })
+
+  test('many large needs leave the last out and say so', async () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    answer.value.line.needs = Array.from({ length: 3_000 }, (_, i) => ({
+      ...need,
+      decisions: [],
+      target: `t${i}`,
+      reason: 'r'.repeat(1_000),
+      extra: Array.from({ length: 40 }, (_, j) => `field ${j} ${'e'.repeat(100)}`)
+    }))
+    const served = await panelAnswer(kept(answer), idAt)
+    assert.ok(Buffer.byteLength(JSON.stringify(served)) <= ANSWER_BUDGET_BYTES)
+    assert.ok(served.line.needs.length > 0 && served.line.needs.length < 3_000)
+    assert.match(served.why, /left out/)
+  })
 })
 
 describe('the inbox', () => {
