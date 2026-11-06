@@ -588,6 +588,23 @@ describe('the receipt path', () => {
     ])
   })
 
+  test('a runner error beside the lock-held exit code is a failure, not lock contention', async () => {
+    const h = harness({
+      tickResult: () => ({
+        code: 3,
+        stdout: '',
+        stderr: 'lock held',
+        error: new Error('timed out after 21600000ms')
+      })
+    })
+    h.dispatcher.requestTick(REPO)
+    await h.settle()
+    assert.equal(h.ticks().length, 1)
+    assert.deepEqual(h.notifications, [
+      { title: 'Jig dispatch failed', body: `${REPO}: timed out after 21600000ms` }
+    ])
+  })
+
   test('a failing notification is logged, never thrown', async () => {
     const h = harness({
       hostCall: (method) => {
