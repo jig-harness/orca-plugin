@@ -1,0 +1,47 @@
+# The frontmatter every page under docs/ carries, checked by Jig's docs
+# skill (/jig:docs). Adapted from the template of Jig's docs-governance module
+# (modules/M4-docs-governance/templates/frontmatter-schema.yaml), cut to what a
+# handful of pages needs. Keep the enums closed.
+
+required:
+  - title          # human-readable name
+  - type           # the page's form (enum below)
+  - status         # lifecycle state (enum below)
+  - last_updated   # YYYY-MM-DD
+
+required_new:
+  - description    # one-line summary
+
+type:
+  values: [guide, reference, architecture]
+  meaning:
+    guide: how to develop, test or install the plugin
+    reference: what a contract or an interface is, as this plugin keeps it
+    architecture: how the worker is built
+  suggestions:
+    howto: guide
+    spec: reference
+    design: architecture
+
+status:
+  values: [draft, active, deprecated]
+  meaning:
+    draft: work in progress, not reviewed
+    active: in use, updated in place
+    deprecated: superseded, kept for reference
+  suggestions:
+    current: active
+    approved: active
+    superseded: deprecated
+
+# Jig's checker needs these two enums defined; no page is required to set them.
+lifecycle:
+  values: [permanent, temporary]
+  meaning:
+    permanent: long-lived reference
+    temporary: expected to be removed
+
+owner:
+  values: [maintainers]
+  meaning:
+    maintainers: the people who maintain this repository
