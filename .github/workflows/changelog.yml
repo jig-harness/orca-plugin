@@ -20,7 +20,9 @@
 #     (`changelog.release.push: direct`) or force-pushes it to
 #     `changelog.release.branch` and opens or updates the release pull request
 #     a person merges (`pull-request`). Every note waiting is one release, and
-#     runs go one at a time, never cancelled, so no two pick the same version.
+#     runs go one at a time, and a run that is executing is never cancelled,
+#     so no two pick the same version. A run still waiting is replaced by a
+#     newer one, which writes the same notes and more.
 #   - The tags, after each run of the workflows that report the required
 #     checks, and every six hours as a backstop: each released version is
 #     tagged on the commit that released it, once every required check on that
@@ -58,8 +60,10 @@
 #
 # The `tag-plan` job re-runs cancelled checks with this workflow's own token,
 # granted Actions write in that job alone, and reads the required checks with
-# Checks and Statuses read; every other job keeps the workflow's
-# `contents: read`. It runs nothing from the repository: the action starts
+# Checks and Statuses read; `check`, `release` and the other jobs without a
+# `permissions` block keep the workflow's `contents: read`. `push` and
+# `tag-push` set `permissions: {}`, which leaves their token no permissions at
+# all: they act with the App's token. `tag-plan` runs nothing from the repository: the action starts
 # Bun outside the checkout, so no file the repository holds (bunfig.toml,
 # .env, tsconfig.json) reaches it. Its checkout keeps no credential; the
 # action hands the token to the one git call that reads origin's tags.
@@ -85,10 +89,12 @@ on:
 permissions:
   contents: read
 
-# A pull request's newer push cancels its older run. A release or a tag run is
-# never cancelled: the release runs one at a time on the newest tip, so a run
-# that waited writes whatever notes are still there, and a newer tag run
-# waiting replaces an older one, since it plans from a newer state.
+# A pull request's newer push cancels its older run. An executing release or
+# tag run is never cancelled: the release runs one at a time on the newest tip,
+# so a run that waited writes whatever notes are still there. Each group keeps
+# one pending run, so a newer run waiting replaces an older pending one, which
+# shows as a cancelled run and is not a failure: it plans or releases from a
+# newer state.
 concurrency:
   group: changelog-${{ github.event_name == 'pull_request' && format('check-{0}', github.ref) || ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'release' || 'tag') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
