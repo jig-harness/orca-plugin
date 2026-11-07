@@ -2,7 +2,7 @@
 title: How the worker is built
 type: architecture
 status: active
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 description: The plugin's concerns, the workspace map they share, its timers, and why the launch hook never waits.
 ---
 
@@ -88,6 +88,7 @@ seconds or the worker has crashed.
 | Status bar read | at start, after each tick, and every minute; never two at once |
 | A status bar read's deadline | 30 seconds, finding the command and reading the settings included |
 | A panel's `jig ask` or `jig send` | 50 seconds, finding the command included; one `jig ask` at a time |
+| A panel's address request in all | 100 seconds: the wait for its turn, `jig ask` and the line read together |
 | A stopped program | SIGTERM, then SIGKILL after two seconds, then given up after two more |
 
 Every program the plugin runs is started without a shell, with its arguments

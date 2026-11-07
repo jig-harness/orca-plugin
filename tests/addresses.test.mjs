@@ -3,7 +3,7 @@
 // `jig send <address> answer <key> <text>` and nothing else.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { ASK_DEADLINE_MS, BUSY_WAIT_MS, addressList, boundThread, lineAddress, sendRows } from '../lib/addresses.mjs'
+import { ASK_DEADLINE_MS, BUSY_WAIT_MS, REQUEST_DEADLINE_MS, addressList, boundThread, lineAddress, sendRows } from '../lib/addresses.mjs'
 import { askFixture, fixtureAnswer, harness, printed, sentOutput } from './fake-orca.mjs'
 
 const PARKED = 'drive@jig-harness/jig#456'
@@ -154,6 +154,31 @@ describe('the address worker', () => {
     h.releaseAsk()
     await again
     assert.deepEqual(h.asks()[1], ['--waiting', '--json'], 'the busy answer was not kept: the list was asked again')
+  })
+
+  test('a read slow in several stages is answered by REQUEST_DEADLINE_MS, inside the panel’s own', async () => {
+    const h = parkHarness({ holdAsks: true, holdLines: true })
+    const flush = async (until = () => false) => {
+      for (let i = 0; i < 20 && !until(); i++) await new Promise((resolve) => setImmediate(resolve))
+    }
+    const first = h.dispatcher.getAddress({ address: PARKED })
+    await flush(() => h.asks().length === 1)
+    const second = h.dispatcher.listAddresses({ fresh: true })
+    await flush()
+    h.clock.advance(BUSY_WAIT_MS - 1000)
+    h.releaseAsk()
+    await flush()
+    h.releaseLine()
+    await first
+    await flush(() => h.asks().length === 2)
+    h.clock.advance(ASK_DEADLINE_MS - 5000)
+    h.releaseAsk()
+    await flush()
+    h.clock.advance(REQUEST_DEADLINE_MS - (BUSY_WAIT_MS - 1000) - (ASK_DEADLINE_MS - 5000))
+    const answer = await second
+    assert.equal(answer.state, 'unreadable')
+    assert.match(answer.why, new RegExp(`past ${REQUEST_DEADLINE_MS / 1000}s`))
+    assert.ok(REQUEST_DEADLINE_MS < 110_000, 'inside the panel’s 110 s')
   })
 
   test('an ask that runs past its deadline is unreadable, and the next ask runs once its process is gone', async () => {

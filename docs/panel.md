@@ -2,7 +2,7 @@
 title: How the panel is built
 type: architecture
 status: active
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 description: The Jig panel's inbox and addresses, where its source and built file live, the worker requests it makes, what each button does, how an answer is sent, and how it is tested.
 ---
 
@@ -77,7 +77,8 @@ asks again. The open panel also asks every minute, so its ages move on.
 `jig ask` and `jig send` run through the same command resolution as the
 line (`lib/jig-command.mjs`), each within 50 seconds, its resolution
 included. One `jig ask` runs at a time: the same question asked while it
-runs shares its answer, and another waits its turn. A usage error that is
+runs shares its answer, and another waits its turn. A whole request, the wait included, is answered
+within 100 seconds, inside the panel's 110. A usage error that is
 not Jig's own (`jig ask: …`) means the jig is older than the command, and
 the panel says to update it.
 
