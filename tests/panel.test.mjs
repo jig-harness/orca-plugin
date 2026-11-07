@@ -322,6 +322,32 @@ describe('the inbox', () => {
     assert.match(failed, /data-draft=/, 'a failed answer can be edited and sent again')
   })
 
+  test('a no-exit stop within its recovery budget is a session being driven again, not a need', async () => {
+    // The quiet fixture's line: a re-arm session in a slot and no need.
+    const h = harness({ lineResult: printed(fixtureAnswer('quiet')) })
+    const answer = await h.dispatcher.getLine({})
+    assert.deepEqual([answer.line.sessions, answer.line.needs.length], [1, 0])
+    const html = panelHtml(answer, { nowMs: Date.parse(answer.now) })
+    assert.match(html, /Nothing needs a person\./)
+    assert.match(html, /1 session in a slot/)
+    assert.doesNotMatch(html, /class="need"/)
+  })
+
+  test('a no-exit stop past its recovery budget waits on a person, under To decide with its reason', async () => {
+    const line = fixtureAnswer('long-needs')
+    line.value.line.needs = line.value.line.needs.filter((n) => n.cause === 'stopped-unknown')
+    const h = harness({ lineResult: printed(line) })
+    const answer = await h.dispatcher.getLine({})
+    const [need] = answer.line.needs
+    assert.match(need.reason, /^repeated no-cause stops: needs a person; /)
+    assert.deepEqual(groups(answer.line.needs).map((g) => g.head), ['To decide, on the pull request'])
+    const html = panelHtml(answer, { nowMs: Date.parse(answer.now) })
+    assert.match(html, /1 needs a person\./)
+    assert.match(html, /To decide, on the pull request/)
+    assert.match(html, /repeated no-cause stops: needs a person; 3 recovery attempts within one hour/)
+    assert.match(html, /Open the pull request/)
+  })
+
   test('only an https link from the line opens', () => {
     assert.equal(openableUrl('https://github.com/jig-harness/jig/pull/456'), 'https://github.com/jig-harness/jig/pull/456')
     for (const url of ['http://github.com/x', 'javascript:alert(1)', 'file:///etc/passwd', null, 'https://'])
