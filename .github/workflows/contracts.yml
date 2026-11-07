@@ -11,7 +11,7 @@ env:
   # The Jig release whose contracts the plugin is checked against: the launch guard record
   # (plugin/shared/orca-guard.ts) and `jig dispatch line --json`. Bump it by hand, like ORCA_REF in
   # validate.yml, when the plugin follows a newer Jig.
-  JIG_REF: 89eb89351999036c137436cd455f79c84ce3f038 # v0.146.0
+  JIG_REF: a8e16188a5d6f87ca1c46cc0464958dba6ff0f0e # v0.156.1
   # The Bun that Jig's mise.toml names at JIG_REF.
   BUN_VERSION: 1.4.4
 
