@@ -1,0 +1,36 @@
+# The labels this repository's issues carry, checked by Jig's file-issue skill
+# before it files an issue (/jig:file-issue). The schema and each key are
+# documented in the header of the template this was cut from:
+# https://github.com/jig-harness/jig/blob/main/modules/M9-tasks-memory/templates/label-taxonomy.yaml
+#
+# It lists only labels the repository has. Add a flag, a group or a category
+# here in the same pull request that creates its label in the tracker.
+
+version: 1
+
+# What kind of work an issue is. Exactly one per issue.
+types:
+  - id: enhancement
+    notes: new or changed behaviour of the plugin, or a check on it
+  - id: bug
+    notes: a defect against expected behaviour
+  - id: documentation
+    notes: a change to the README or docs/ that changes no behaviour
+
+# Where an issue is in its lifecycle. A state, not a label: GitHub Issues keeps
+# it as open or closed, and a label named by `issue_tracker.states`.
+statuses:
+  - id: todo
+    notes: accepted and ready to start
+  - id: in-progress
+    notes: actively being worked
+  - id: in-review
+    notes: a pull request is open for it
+  - id: done
+    notes: terminal, shipped
+  - id: canceled
+    notes: terminal, closed without completing
+  - id: duplicate
+    notes: terminal, closed as a copy of another issue
+
+flags: []
