@@ -60,7 +60,7 @@ function waitsText(waitsOn) {
 function recordHtml(record) {
   const url = openableUrl(record?.url)
   if (url) return `<button type="button" class="link m" data-open-url="${esc(url)}" title="${esc(url)}">${esc(record.kind)} ↗</button>`
-  return `<span class="m" title="${esc(record?.path ?? record?.url ?? '')}">${esc(record?.kind ?? 'record')}</span>`
+  return `<span class="m" title="${esc(record?.path ?? record?.url ?? '')}">${esc(record?.kind ?? 'record')}: ${esc(record?.path ?? record?.url ?? '')}</span>`
 }
 
 /** One entry: Jig's line about it, then the record's own words, quoted. */
@@ -104,7 +104,7 @@ export function threadHtml(answer, { nowMs, drafts = new Map(), sends = new Map(
   ${answer.parked.length > 0 ? `<section class="group"><h2 class="groupHead">To answer <span class="mut">${answer.parked.length}</span></h2>${answerBoxesHtml(a.address, answer.parked, { drafts, sends })}</section>` : ''}
   <section class="group"><h2 class="groupHead">Thread <span class="mut">${thread.length}</span></h2>
     ${omitted > 0 ? `<p class="sm mut">${esc(plural(omitted, 'earlier entry', 'earlier entries'))} left out. <button type="button" class="link" data-thread-all="${esc(a.address)}">Show all</button></p>` : ''}
-    ${thread.length === 0 ? '<p class="sm mut">No correspondence yet: no record names this address.</p>' : `<ol class="thread">${thread.map((e) => entryHtml(e, nowMs)).join('')}</ol>`}
+    ${thread.length === 0 ? `<p class="sm mut">${omitted > 0 ? 'The correspondence was too large to display; read it with jig ask.' : unread.length > 0 ? 'No correspondence was read; some sources could not be read.' : 'No correspondence yet: no record names this address.'}</p>` : `<ol class="thread">${thread.map((e) => entryHtml(e, nowMs)).join('')}</ol>`}
     ${unread.length > 0 ? `<p class="sm mut">Not read: ${unread.map((r) => `<span class="m">${esc(r.record)}</span>${r.detail ? ` (${esc(r.detail)})` : ''}`).join('; ')}.</p>` : ''}
   </section>`
 }

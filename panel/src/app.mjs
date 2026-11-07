@@ -77,6 +77,7 @@ async function loadLine(fresh = false) {
   try {
     view.answer = await request('line.get', fresh ? { fresh: true } : {})
     view.readAt = performance.now()
+    if (view.tab === 'thread' && view.address) loadThread(view.address)
   } catch (error) {
     view.answer = { state: 'unreadable', why: workerSilent(error) }
   }
@@ -92,7 +93,9 @@ async function loadList(fresh = false) {
   render()
 }
 
+let threadRead = 0
 async function loadThread(address) {
+  const generation = ++threadRead
   const all = view.all
   let answer
   try {
@@ -101,7 +104,7 @@ async function loadThread(address) {
     answer = { state: 'unreadable', why: workerSilent(error), address }
   }
   // A thread asked for before the person moved on is not drawn over the one they opened.
-  if (view.address !== address || view.all !== all) return
+  if (view.address !== address || view.all !== all || threadRead !== generation) return
   view.thread = answer
   render()
 }
@@ -173,7 +176,7 @@ function answerStep(step, address, key) {
       view.sends.set(k, {
         stage: 'failed',
         text: send.text,
-        result: { why: `${workerSilent(error)} Whether it was sent is not known: read the pull request before sending again.` }
+        result: { unknown: true, why: `${workerSilent(error)} Whether it was sent is not known: read the pull request before sending again.` }
       })
     )
     .finally(render)

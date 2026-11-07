@@ -24,7 +24,7 @@ function resultHtml(send) {
       r.wrote ? ` Jig wrote ${url ? `<button type="button" class="link" data-open-url="${esc(url)}">the comment ↗</button>` : `<span class="m">${esc(r.wrote)}</span>`}` : ''
     }${r.writesAs ? `<div class="mut">As ${esc(r.writesAs)}.</div>` : ''}</div>${printed}`
   }
-  return `<div class="failed sm" role="alert"><b>Not sent:</b> ${esc(r.why ?? 'no reason was given.')}</div>${printed}`
+  return `<div class="failed sm" role="alert"><b>${r.unknown ? 'Delivery unknown:' : 'Not sent:'}</b> ${esc(r.why ?? 'no reason was given.')}</div>${printed}`
 }
 
 /**
@@ -50,7 +50,7 @@ export function questionBoxHtml(address, question, { drafts = new Map(), sends =
         <button type="button" class="ghost" data-answer="edit" ${data}>Edit</button>`
       }</div>
     </div>`
-  if (send?.stage === 'sent')
+  if (send?.stage === 'sent' || send?.result?.unknown)
     return `<div class="box" data-box="${esc(k)}">${head}<pre class="line">${esc(answerLine(question.key, send.text))}</pre>${resultHtml(send)}</div>`
   return `<div class="box" data-box="${esc(k)}">${head}
     ${send?.stage === 'failed' ? resultHtml(send) : ''}

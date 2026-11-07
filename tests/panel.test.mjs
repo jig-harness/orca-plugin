@@ -360,9 +360,16 @@ describe('the addresses view', () => {
 
   test('an empty thread says so, and names what it did not read', () => {
     const html = threadHtml(thread(askFixture('thread-empty')), { nowMs })
-    assert.match(html, /No correspondence yet/)
+    assert.match(html, /No correspondence was read/)
     assert.match(html, /rearm, on this machine, driver generation 2, process alive/)
     assert.match(html, /Not read: <span class="m">dispatch-launch-claim<\/span> \(the comments did not read within 15 seconds\)/)
+  })
+
+  test('an omitted empty thread does not claim correspondence is absent', () => {
+    const value = { ...askFixture('thread-empty'), threadOmitted: 1 }
+    const html = threadHtml(thread(value), { nowMs })
+    assert.match(html, /too large to display/)
+    assert.doesNotMatch(html, /no record names this address/)
   })
 
   test('a thread the line has parked shows an answer box per question', () => {

@@ -220,7 +220,7 @@ function resultHtml(send) {
       r.wrote ? ` Jig wrote ${url ? `<button type="button" class="link" data-open-url="${esc(url)}">the comment ↗</button>` : `<span class="m">${esc(r.wrote)}</span>`}` : ''
     }${r.writesAs ? `<div class="mut">As ${esc(r.writesAs)}.</div>` : ''}</div>${printed}`
   }
-  return `<div class="failed sm" role="alert"><b>Not sent:</b> ${esc(r.why ?? 'no reason was given.')}</div>${printed}`
+  return `<div class="failed sm" role="alert"><b>${r.unknown ? 'Delivery unknown:' : 'Not sent:'}</b> ${esc(r.why ?? 'no reason was given.')}</div>${printed}`
 }
 
 /**
@@ -246,7 +246,7 @@ function questionBoxHtml(address, question, { drafts = new Map(), sends = new Ma
         <button type="button" class="ghost" data-answer="edit" ${data}>Edit</button>`
       }</div>
     </div>`
-  if (send?.stage === 'sent')
+  if (send?.stage === 'sent' || send?.result?.unknown)
     return `<div class="box" data-box="${esc(k)}">${head}<pre class="line">${esc(answerLine(question.key, send.text))}</pre>${resultHtml(send)}</div>`
   return `<div class="box" data-box="${esc(k)}">${head}
     ${send?.stage === 'failed' ? resultHtml(send) : ''}
@@ -324,7 +324,7 @@ function waitsText(waitsOn) {
 function recordHtml(record) {
   const url = openableUrl(record?.url)
   if (url) return `<button type="button" class="link m" data-open-url="${esc(url)}" title="${esc(url)}">${esc(record.kind)} ↗</button>`
-  return `<span class="m" title="${esc(record?.path ?? record?.url ?? '')}">${esc(record?.kind ?? 'record')}</span>`
+  return `<span class="m" title="${esc(record?.path ?? record?.url ?? '')}">${esc(record?.kind ?? 'record')}: ${esc(record?.path ?? record?.url ?? '')}</span>`
 }
 
 /** One entry: Jig's line about it, then the record's own words, quoted. */
@@ -368,7 +368,7 @@ function threadHtml(answer, { nowMs, drafts = new Map(), sends = new Map(), note
   ${answer.parked.length > 0 ? `<section class="group"><h2 class="groupHead">To answer <span class="mut">${answer.parked.length}</span></h2>${answerBoxesHtml(a.address, answer.parked, { drafts, sends })}</section>` : ''}
   <section class="group"><h2 class="groupHead">Thread <span class="mut">${thread.length}</span></h2>
     ${omitted > 0 ? `<p class="sm mut">${esc(plural(omitted, 'earlier entry', 'earlier entries'))} left out. <button type="button" class="link" data-thread-all="${esc(a.address)}">Show all</button></p>` : ''}
-    ${thread.length === 0 ? '<p class="sm mut">No correspondence yet: no record names this address.</p>' : `<ol class="thread">${thread.map((e) => entryHtml(e, nowMs)).join('')}</ol>`}
+    ${thread.length === 0 ? `<p class="sm mut">${omitted > 0 ? 'The correspondence was too large to display; read it with jig ask.' : unread.length > 0 ? 'No correspondence was read; some sources could not be read.' : 'No correspondence yet: no record names this address.'}</p>` : `<ol class="thread">${thread.map((e) => entryHtml(e, nowMs)).join('')}</ol>`}
     ${unread.length > 0 ? `<p class="sm mut">Not read: ${unread.map((r) => `<span class="m">${esc(r.record)}</span>${r.detail ? ` (${esc(r.detail)})` : ''}`).join('; ')}.</p>` : ''}
   </section>`
 }
@@ -661,6 +661,7 @@ async function loadLine(fresh = false) {
   try {
     view.answer = await request('line.get', fresh ? { fresh: true } : {})
     view.readAt = performance.now()
+    if (view.tab === 'thread' && view.address) loadThread(view.address)
   } catch (error) {
     view.answer = { state: 'unreadable', why: workerSilent(error) }
   }
@@ -676,7 +677,9 @@ async function loadList(fresh = false) {
   render()
 }
 
+let threadRead = 0
 async function loadThread(address) {
+  const generation = ++threadRead
   const all = view.all
   let answer
   try {
@@ -685,7 +688,7 @@ async function loadThread(address) {
     answer = { state: 'unreadable', why: workerSilent(error), address }
   }
   // A thread asked for before the person moved on is not drawn over the one they opened.
-  if (view.address !== address || view.all !== all) return
+  if (view.address !== address || view.all !== all || threadRead !== generation) return
   view.thread = answer
   render()
 }
@@ -757,7 +760,7 @@ function answerStep(step, address, key) {
       view.sends.set(k, {
         stage: 'failed',
         text: send.text,
-        result: { why: `${workerSilent(error)} Whether it was sent is not known: read the pull request before sending again.` }
+        result: { unknown: true, why: `${workerSilent(error)} Whether it was sent is not known: read the pull request before sending again.` }
       })
     )
     .finally(render)

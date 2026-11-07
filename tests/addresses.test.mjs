@@ -121,7 +121,7 @@ describe('the address worker', () => {
     assert.deepEqual(h.asks(), [])
   })
 
-  test('one jig ask at a time: the same question shares its read, another waits its turn', async () => {
+  test('one jig ask at a time: the same question shares its read, another is refused without queuing', async () => {
     const h = parkHarness({ holdAsks: true })
     const first = h.dispatcher.getAddress({ address: PARKED })
     const again = h.dispatcher.getAddress({ address: PARKED })
@@ -131,10 +131,8 @@ describe('the address worker', () => {
     h.releaseAsk()
     assert.equal((await first).state, 'answer')
     assert.equal((await again).state, 'answer')
-    for (let i = 0; i < 20 && h.asks().length < 2; i++) await new Promise((resolve) => setImmediate(resolve))
-    assert.equal(h.asks().length, 2)
-    h.releaseAsk()
-    await other
+    assert.equal((await other).state, 'unreadable')
+    assert.equal(h.asks().length, 1)
   })
 
   test('an ask that runs past its deadline is unreadable, and the next ask still runs', async () => {
@@ -145,11 +143,31 @@ describe('the address worker', () => {
     const answer = await late
     assert.equal(answer.state, 'unreadable')
     assert.match(answer.why, /ran past 50s/)
+    assert.equal((await h.dispatcher.getAddress({ address: PARKED })).state, 'unreadable')
+    assert.equal(h.asks().length, 1, 'cleanup still holds admission after caller times out')
+    h.releaseAsk()
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve))
     const next = h.dispatcher.getAddress({ address: PARKED })
     for (let i = 0; i < 20 && h.asks().length < 2; i++) await new Promise((resolve) => setImmediate(resolve))
     h.releaseAsk()
     h.releaseAsk()
     assert.equal((await next).state, 'answer')
+  })
+
+  test('malformed command-specific output is unreadable', async () => {
+    for (const value of [{ v: 1 }, { v: 1, waiting: {} }, { ...askFixture('thread-empty'), sources: { records: {} } }]) {
+      const h = parkHarness({ askResult: () => ({ code: 0, stdout: JSON.stringify(value), stderr: '' }) })
+      assert.equal((await h.dispatcher.getAddress({ address: PARKED })).state, 'unreadable')
+      assert.equal((await h.dispatcher.listAddresses({})).state, 'unreadable')
+    }
+  })
+
+  test('oversized metadata produces a bounded explicit unreadable response', async () => {
+    const value = { ...askFixture('thread-empty'), title: 'x'.repeat(1_100_000) }
+    const h = parkHarness({ askResult: () => ({ code: 0, stdout: JSON.stringify(value), stderr: '' }) })
+    const answer = await h.dispatcher.getAddress({ address: PARKED })
+    assert.equal(answer.state, 'unreadable')
+    assert.ok(Buffer.byteLength(JSON.stringify(answer)) < 900_000)
   })
 
   test('a thread past the answer budget keeps its newest entries and counts the rest', () => {
