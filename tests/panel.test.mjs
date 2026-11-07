@@ -281,6 +281,32 @@ describe('the inbox', () => {
         assert.ok(Date.parse(group.needs[i - 1].since) <= Date.parse(group.needs[i].since))
   })
 
+  test('a no-exit stop within its recovery budget is a session being driven again, not a need', async () => {
+    // The quiet fixture's line: a re-arm session in a slot and no need.
+    const h = harness({ lineResult: printed(fixtureAnswer('quiet')) })
+    const answer = await h.dispatcher.getLine({})
+    assert.deepEqual([answer.line.sessions, answer.line.needs.length], [1, 0])
+    const html = panelHtml(answer, { nowMs: Date.parse(answer.now) })
+    assert.match(html, /Nothing needs a person\./)
+    assert.match(html, /1 session in a slot/)
+    assert.doesNotMatch(html, /class="need"/)
+  })
+
+  test('a no-exit stop past its recovery budget waits on a person, under To decide with its reason', async () => {
+    const line = fixtureAnswer('long-needs')
+    line.value.line.needs = line.value.line.needs.filter((n) => n.cause === 'stopped-unknown')
+    const h = harness({ lineResult: printed(line) })
+    const answer = await h.dispatcher.getLine({})
+    const [need] = answer.line.needs
+    assert.match(need.reason, /^repeated no-cause stops: needs a person; /)
+    assert.deepEqual(groups(answer.line.needs).map((g) => g.head), ['To decide, on the pull request'])
+    const html = panelHtml(answer, { nowMs: Date.parse(answer.now) })
+    assert.match(html, /1 needs a person\./)
+    assert.match(html, /To decide, on the pull request/)
+    assert.match(html, /repeated no-cause stops: needs a person; 3 recovery attempts within one hour/)
+    assert.match(html, /Open the pull request/)
+  })
+
   test('the answer line is the dashboard’s: one `answer <key>: …` per decision', () => {
     assert.equal(answerText(['T1', 'F-3'], [' take A ', '']), 'answer T1: take A\n\nanswer F-3: ')
   })

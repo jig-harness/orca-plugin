@@ -335,7 +335,7 @@
         "url": "https://github.com/jig-harness/jig/pull/459",
         "title": "Read the guard record without awaiting",
         "since": "2026-11-05T11:30:00.000Z",
-        "reason": "drive ledger stopped 3 with no class the dispatcher knows",
+        "reason": "repeated no-cause stops: needs a person; 3 recovery attempts within one hour (budget 3); read the drive's handoff",
         "decisions": [],
         "notified": {
           "at": "2026-11-05T11:30:00.000Z",

@@ -2,7 +2,7 @@
 title: Developing the plugin
 type: guide
 status: active
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 description: How to load the plugin while you work on it, run its tests and Orca's validator, and what to watch for on Linux.
 ---
 
@@ -70,7 +70,9 @@ pinned by `JIG_REF`. Bump that pin by hand, as you bump `ORCA_REF`.
 - `tests/contracts/dispatch-line.mjs` runs the pinned Jig's
   `jig dispatch line --json` in a fresh home, and checks that the plugin's
   `lineStatus` reads what it prints. It checks no tick yet, a fresh tick's
-  needs, and an overdue tick.
+  needs, an overdue tick, and a drive that stopped with no recorded exit:
+  within Jig's recovery budget its line holds a re-arm session and no need,
+  past it a need for a person.
 
 Both run with Bun, which runs Jig's TypeScript, and need no install. They
 are not `*.test.mjs` files, so `node --test` skips them. To run them
