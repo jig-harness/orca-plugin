@@ -32,6 +32,11 @@ dispatch:
   # `jig install dispatch --repo <clone> --yes`.
   labels:
     enabled: true
+  # Start drives for our recent pull requests even when their opener did not
+  # arm a drive. Jig defines the adoption window and honours `jig:hold`.
+  adopt:
+    enabled: true
+    authors: [liqweed, ophir-docomply]
 changelog:
   # The changelog is kept from change notes (changes/README.md): a pull
   # request a user of the plugin would notice adds a note, and the release
