@@ -50,8 +50,11 @@ export function questionBoxHtml(address, question, { drafts = new Map(), sends =
         <button type="button" class="ghost" data-answer="edit" ${data}>Edit</button>`
       }</div>
     </div>`
-  if (send?.stage === 'sent' || send?.result?.unknown)
+  if (send?.stage === 'sent')
     return `<div class="box" data-box="${esc(k)}">${head}<pre class="line">${esc(answerLine(question.key, send.text))}</pre>${resultHtml(send)}</div>`
+  if (send?.result?.unknown)
+    return `<div class="box" data-box="${esc(k)}">${head}<pre class="line">${esc(answerLine(question.key, send.text))}</pre>${resultHtml(send)}
+      <div class="acts"><button type="button" class="ghost" data-answer="edit" ${data}>I checked the pull request: nothing was posted, answer again</button></div></div>`
   return `<div class="box" data-box="${esc(k)}">${head}
     ${send?.stage === 'failed' ? resultHtml(send) : ''}
     <textarea rows="2" data-draft="${esc(k)}" aria-label="${esc(`Answer ${question.key}`)}" placeholder="Your answer, in one line">${esc(drafts.get(k) ?? '')}</textarea>

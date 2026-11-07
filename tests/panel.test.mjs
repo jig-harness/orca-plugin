@@ -5,7 +5,7 @@ import { describe, test } from 'node:test'
 import { ANSWER_BUDGET_BYTES, needPaths, panelAnswer } from '../lib/panel.mjs'
 import { LINE_READ_DEADLINE_MS, LINE_REFRESH_MS } from '../lib/status-bar.mjs'
 import { addressListHtml, threadHtml } from '../panel/src/addresses.mjs'
-import { answerLine, boxKey } from '../panel/src/answer.mjs'
+import { answerLine, boxKey, questionBoxHtml } from '../panel/src/answer.mjs'
 import { groups, panelHtml } from '../panel/src/inbox.mjs'
 import { openableUrl } from '../panel/src/util.mjs'
 import { askFixture, fixtureAnswer, harness, lineAnswer, printed } from './fake-orca.mjs'
@@ -391,5 +391,15 @@ describe('the addresses view', () => {
     assert.match(html, /1 address with recent activity/)
     assert.match(html, /data-open-address="drive@a\/b#1"/)
     assert.match(html, /waits on you to<\/span> <b>answer<\/b>/)
+  })
+})
+
+describe('an answer whose delivery is unknown', () => {
+  test('offers the way back once the person has checked the pull request', () => {
+    const q = { key: 'PRRT_kwDOa1', question: 'Which?' }
+    const sends = new Map([[boxKey('drive@a/b#1', q.key), { stage: 'failed', text: 'A', result: { unknown: true, why: 'it timed out.' } }]])
+    const html = questionBoxHtml('drive@a/b#1', q, { sends })
+    assert.match(html, /Delivery unknown/)
+    assert.match(html, /data-answer="edit"/)
   })
 })

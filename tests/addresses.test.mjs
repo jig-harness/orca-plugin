@@ -3,7 +3,7 @@
 // `jig send <address> answer <key> <text>` and nothing else.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { ASK_DEADLINE_MS, addressList, boundThread, lineAddress, sendRows } from '../lib/addresses.mjs'
+import { ASK_DEADLINE_MS, BUSY_WAIT_MS, addressList, boundThread, lineAddress, sendRows } from '../lib/addresses.mjs'
 import { askFixture, fixtureAnswer, harness, printed, sentOutput } from './fake-orca.mjs'
 
 const PARKED = 'drive@jig-harness/jig#456'
@@ -121,7 +121,7 @@ describe('the address worker', () => {
     assert.deepEqual(h.asks(), [])
   })
 
-  test('one jig ask at a time: the same question shares its read, another is refused without queuing', async () => {
+  test('one jig ask at a time: the same question shares its read, another waits its turn', async () => {
     const h = parkHarness({ holdAsks: true })
     const first = h.dispatcher.getAddress({ address: PARKED })
     const again = h.dispatcher.getAddress({ address: PARKED })
@@ -131,11 +131,32 @@ describe('the address worker', () => {
     h.releaseAsk()
     assert.equal((await first).state, 'answer')
     assert.equal((await again).state, 'answer')
-    assert.equal((await other).state, 'unreadable')
-    assert.equal(h.asks().length, 1)
+    for (let i = 0; i < 20 && h.asks().length < 2; i++) await new Promise((resolve) => setImmediate(resolve))
+    assert.equal(h.asks().length, 2, 'the other read starts once the first has finished')
+    h.releaseAsk()
+    assert.equal((await other).state, 'answer')
   })
 
-  test('an ask that runs past its deadline is unreadable, and the next ask still runs', async () => {
+  test('a read that waits past BUSY_WAIT_MS is busy, and a busy list is not kept', async () => {
+    const h = parkHarness({ holdAsks: true })
+    const first = h.dispatcher.getAddress({ address: PARKED })
+    for (let i = 0; i < 20 && h.asks().length < 1; i++) await new Promise((resolve) => setImmediate(resolve))
+    const list = h.dispatcher.listAddresses({})
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve))
+    h.clock.advance(BUSY_WAIT_MS)
+    const busy = await list
+    assert.equal(busy.state, 'unreadable')
+    assert.match(busy.why, /another address is being read/)
+    h.releaseAsk()
+    await first
+    const again = h.dispatcher.listAddresses({})
+    for (let i = 0; i < 20 && h.asks().length < 2; i++) await new Promise((resolve) => setImmediate(resolve))
+    h.releaseAsk()
+    await again
+    assert.deepEqual(h.asks()[1], ['--waiting', '--json'], 'the busy answer was not kept: the list was asked again')
+  })
+
+  test('an ask that runs past its deadline is unreadable, and the next ask runs once its process is gone', async () => {
     const h = parkHarness({ holdAsks: true })
     const late = h.dispatcher.getAddress({ address: PARKED })
     for (let i = 0; i < 20 && h.asks().length < 1; i++) await new Promise((resolve) => setImmediate(resolve))
@@ -143,13 +164,11 @@ describe('the address worker', () => {
     const answer = await late
     assert.equal(answer.state, 'unreadable')
     assert.match(answer.why, /ran past 50s/)
-    assert.equal((await h.dispatcher.getAddress({ address: PARKED })).state, 'unreadable')
+    const next = h.dispatcher.getAddress({ address: PARKED })
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve))
     assert.equal(h.asks().length, 1, 'cleanup still holds admission after caller times out')
     h.releaseAsk()
-    for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve))
-    const next = h.dispatcher.getAddress({ address: PARKED })
     for (let i = 0; i < 20 && h.asks().length < 2; i++) await new Promise((resolve) => setImmediate(resolve))
-    h.releaseAsk()
     h.releaseAsk()
     assert.equal((await next).state, 'answer')
   })
@@ -168,6 +187,16 @@ describe('the address worker', () => {
     const answer = await h.dispatcher.getAddress({ address: PARKED })
     assert.equal(answer.state, 'unreadable')
     assert.ok(Buffer.byteLength(JSON.stringify(answer)) < 900_000)
+  })
+
+  test('the whole response, not the value alone, stays within the budget', () => {
+    const value = askFixture('thread-long')
+    const big = { ...value, thread: value.thread.map((e) => ({ ...e, text: 'x'.repeat(1000) })) }
+    const parked = [{ key: 'K', question: 'q'.repeat(3000) }]
+    const frame = (v) => ({ state: 'answer', why: null, address: PARKED, value: v, parked })
+    const bound = boundThread(big, 6000, frame)
+    assert.ok(Buffer.byteLength(JSON.stringify(frame(bound))) <= 6000)
+    assert.ok(bound.thread.length > 0)
   })
 
   test('a thread past the answer budget keeps its newest entries and counts the rest', () => {
@@ -191,6 +220,15 @@ describe('sending an answer', () => {
     assert.equal(result.wrote, 'https://github.com/jig-harness/jig/pull/456#issuecomment-6699001')
     assert.equal(result.writesAs, 'liqweed, the login the forge client here is signed in as')
     assert.equal(result.printed, sentOutput().trimEnd())
+  })
+
+  test('an oversized send keeps its receipt and cuts only what jig printed', async () => {
+    const h = parkHarness({ sendResult: () => ({ code: 0, stdout: `${sentOutput()}${'x'.repeat(1_000_000)}`, stderr: '' }) })
+    const result = await h.dispatcher.sendToAddress(answer)
+    assert.equal(result.sent, true)
+    assert.equal(result.wrote, 'https://github.com/jig-harness/jig/pull/456#issuecomment-6699001')
+    assert.match(result.writesAs, /^liqweed/)
+    assert.match(result.printed, /exceeded the panel limit/)
   })
 
   test('text that looks like an option stays the answer’s words', async () => {
