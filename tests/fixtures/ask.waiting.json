@@ -1,0 +1,41 @@
+{
+  "v": 1,
+  "tick": {
+    "runId": "20261105T164500Z",
+    "finishedAt": "2026-11-05T16:46:03.000Z"
+  },
+  "waiting": [
+    {
+      "address": "drive@jig-harness/jig#456",
+      "act": "answer",
+      "since": "2026-11-05T09:12:00.000Z",
+      "reason": "drive ledger parked: stopped 8 (parked), waiting on thread PRRT_kwDOa1, finding F-3, thread PRRT_kwDOa4: a person answers",
+      "url": "https://github.com/jig-harness/jig/pull/456",
+      "title": "Give every station a constant address",
+      "questions": [
+        "Should `jig ask` read session transcripts in this pull request, or records only?",
+        "Rename the `launch` table column `stage` to `station`, with a migration?",
+        "What should a standing role without a key be called: `arbiter@jig` or `arbiter@jig#-`?"
+      ]
+    },
+    {
+      "address": "followup@example-org/web#461",
+      "act": "re-run the follow-up",
+      "since": "2026-11-05T12:02:00.000Z",
+      "reason": "failed follow-up: its pass ended without recording done; never started again by the tick, a person settles it",
+      "url": "https://github.com/example-org/web/pull/461",
+      "title": "Drop the legacy session cookie",
+      "questions": []
+    },
+    {
+      "address": "pickup@example-org/api#API-77",
+      "act": "look at the stalled pickup",
+      "since": "2026-11-05T07:25:00.000Z",
+      "reason": "stalled: claimed 6 h ago with no commit",
+      "url": null,
+      "title": "Rate-limit the export endpoint",
+      "questions": []
+    }
+  ],
+  "unread": null
+}

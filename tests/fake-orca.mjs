@@ -116,7 +116,8 @@ export function receipt(repo = REPO, extra = {}) {
  * recorded; a tick waits for `release()` when `holdTicks` is set. With `statusBar`, Orca has
  * `statusBar.update`, each update is recorded, and a line read waits for `releaseLine()` when
  * `holdLines` is set. With `canOpen`, Orca has `workspace.open`, and each id opened is recorded;
- * every post to the panel is recorded too.
+ * every post to the panel is recorded too. `askResult` and `sendResult` answer `jig ask` and
+ * `jig send`; an ask waits for `releaseAsk()` when `holdAsks` is set.
  */
 export function harness({
   files = [`${REPO}/.config/jig.yaml`, '/bin/bun', '/bin/claude', '/plugin/jig.ts'],
@@ -131,7 +132,10 @@ export function harness({
   lineResult = () => ({ code: 0, stdout: JSON.stringify(lineAnswer()), stderr: '' }),
   holdLines = false,
   intervalSetting = 5,
-  canOpen = false
+  canOpen = false,
+  askResult = () => ({ code: 0, stdout: JSON.stringify(askFixture('waiting')), stderr: '' }),
+  holdAsks = false,
+  sendResult = () => ({ code: 0, stdout: sentOutput(), stderr: '' })
 } = {}) {
   const clock = fakeClock()
   const logs = []
@@ -140,6 +144,7 @@ export function harness({
   const store = new Map()
   const pending = []
   const pendingLines = []
+  const pendingAsks = []
   const items = []
   const opened = []
   const posts = []
@@ -197,6 +202,11 @@ export function harness({
         stdout: JSON.stringify([{ id: 'jig@jig', scope: 'user', installPath: '/plugin' }]),
         stderr: ''
       }
+    if (argv[4] === 'ask') {
+      if (holdAsks) return new Promise((resolve) => pendingAsks.push(() => resolve(askResult(argv))))
+      return askResult(argv)
+    }
+    if (argv[4] === 'send') return sendResult(argv)
     if (argv.includes('dispatch') && argv.includes('line')) {
       if (holdLines) return new Promise((resolve) => pendingLines.push(() => resolve(lineResult(argv))))
       return lineResult(argv)
@@ -224,6 +234,8 @@ export function harness({
   })
   const ticks = () => runs.filter((argv) => argv.includes('dispatch') && !argv.includes('line'))
   const lineReads = () => runs.filter((argv) => argv.includes('dispatch') && argv.includes('line'))
+  const asks = () => runs.filter((argv) => argv[4] === 'ask').map((argv) => argv.slice(5))
+  const sends = () => runs.filter((argv) => argv[4] === 'send').map((argv) => argv.slice(5))
   return {
     dispatcher,
     clock,
@@ -233,6 +245,8 @@ export function harness({
     store,
     ticks,
     lineReads,
+    asks,
+    sends,
     runOptions,
     items,
     opened,
@@ -242,6 +256,8 @@ export function harness({
     release: () => pending.shift()?.(),
     /** Lets the oldest held line read finish. */
     releaseLine: () => pendingLines.shift()?.(),
+    /** Lets the oldest held ask finish. */
+    releaseAsk: () => pendingAsks.shift()?.(),
     settle: () => dispatcher.settled()
   }
 }
@@ -292,6 +308,29 @@ export function lineAnswer(line = {}) {
 export function fixtureAnswer(scenario) {
   const value = JSON.parse(readFileSync(new URL(`./fixtures/state.${scenario}.json`, import.meta.url), 'utf8'))
   return { ok: true, value }
+}
+
+/** What `jig ask --json` printed in tests/fixtures/ask.<name>.json. */
+export function askFixture(name) {
+  return JSON.parse(readFileSync(new URL(`./fixtures/ask.${name}.json`, import.meta.url), 'utf8'))
+}
+
+/** What a real `jig send … answer` prints when it sent, as Jig's plugin/send/lib/plan.ts renders it. */
+export function sentOutput(address = 'drive@jig-harness/jig#456', key = 'PRRT_kwDOa1', text = 'A, records only') {
+  const row = (name, value) => `  ${name.padEnd(11)}${value}`
+  return [
+    `jig send ${address} answer`,
+    row('repository', 'jig-harness/jig'),
+    row('writes as', 'liqweed, the login the forge client here is signed in as'),
+    row('record', `a comment on pull request 456: "answer ${key}: ${text}", with the record envelope naming liqweed and this host (as a digest) in a hidden marker`),
+    row('where', 'https://github.com/jig-harness/jig/pull/456'),
+    row('read by', "the re-arm, which hands your answer to the drive's passes as your verdict once every parked question is answered"),
+    row('undo', 'none once the re-arm has read it; until then, delete the comment'),
+    row('note', 'the answer is a comment on the pull request, readable by whoever can read the pull request'),
+    row('sent', 'https://github.com/jig-harness/jig/pull/456#issuecomment-6699001'),
+    row('next', "the re-arm, which hands your answer to the drive's passes as your verdict once every parked question is answered"),
+    ''
+  ].join('\n')
 }
 
 export const printed = (answer) => () => ({ code: 0, stdout: JSON.stringify(answer), stderr: '' })

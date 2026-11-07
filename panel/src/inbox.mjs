@@ -1,43 +1,14 @@
 // The inbox, as pure functions of what the worker's `line.get` answers: what needs the person,
 // in the order and the words of the dashboard's What needs you (Jig's dashboard/src/needs-view.ts),
 // drawn as HTML text. Nothing here reaches Orca; app.mjs wires it to the frame.
+import { answerBoxesHtml, boxKey } from './answer.mjs'
+import { MINUTE_MS, ago, esc, openableUrl, plural, span } from './util.mjs'
 
 /** The causes a person decides; every other need is one to check. */
 const TO_DECIDE = new Set(['parked', 'needs-person', 'stopped-unknown'])
 
 /** Each stage's mark, as the dashboard draws it. */
 const STAGES = { pickup: '+', rearm: '↻', takeover: '⇄', followup: '»', notify: '*', steer: '^' }
-
-const MINUTE_MS = 60_000
-
-/** Text made safe to put in HTML, attributes included. */
-export function esc(value) {
-  return String(value ?? '').replace(
-    /[&<>"']/g,
-    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
-  )
-}
-
-/** A number of whole minutes as the dashboard says it: `47 min`, `1 h 17 min`, `3 d`. */
-export function span(minutes) {
-  const whole = Math.max(0, Math.floor(minutes))
-  if (whole < 60) return `${whole} min`
-  const hours = Math.floor(whole / 60)
-  const rest = whole % 60
-  if (hours >= 48) return `${Math.floor(hours / 24)} d`
-  return `${hours} h${rest > 0 ? ` ${rest} min` : ''}`
-}
-
-/** How long ago a time was, in whole minutes; `?` when it does not read. */
-export function ago(iso, nowMs) {
-  const at = Date.parse(iso)
-  return Number.isFinite(at) ? span((nowMs - at) / MINUTE_MS) : '?'
-}
-
-/** `1 session`, `3 sessions`. */
-export function plural(n, one, many = `${one}s`) {
-  return `${n} ${n === 1 ? one : many}`
-}
 
 function recordedWord(need) {
   if (need.cause === 'parked') return 'parked for a person'
@@ -68,24 +39,9 @@ export function answerKeys(need) {
   return [...new Set((need.decisions ?? []).map((d) => d.key))]
 }
 
-/** The answer line the dashboard copies: `answer <key>: <reply>`, one per key, blank-line apart. */
-export function answerText(keys, replies) {
-  return keys.map((key, i) => `answer ${key}: ${(replies[i] ?? '').trim()}`).join('\n\n')
-}
-
-/** Only the forge's or tracker's own https link opens; anything else is not a link. */
-export function openableUrl(url) {
-  return typeof url === 'string' && /^https:\/\/[^/\s]+\//i.test(url) ? url : null
-}
-
 /** A need's key across reads, for its drafts and its open folds. */
 export function needKey(need) {
   return `${need.repo} ${need.target} ${need.cause}`
-}
-
-/** A draft's or a decision's key: the need's key and the decision's, on two lines. */
-export function draftKey(need, key) {
-  return `${needKey(need)}\n${key}`
 }
 
 /**
@@ -159,37 +115,39 @@ export function headHtml(answer, nowMs) {
 function decisionHtml(need, decision, open) {
   const lines = Array.isArray(decision.lines) ? decision.lines : []
   const named = decision.decisionClass ? `${decision.decisionClass}, ` : ''
-  return `<details class="decision" data-fold="${esc(draftKey(need, decision.key))}"${open ? ' open' : ''}>
+  return `<details class="decision" data-fold="${esc(`${needKey(need)}\n${decision.key}`)}"${open ? ' open' : ''}>
     <summary><span class="q">${esc(decision.question ?? `Decision ${decision.key}`)}</span>
       <span class="sm mut"> ${esc(named)}${esc(decision.kind)} <span class="m">${esc(decision.key)}</span></span></summary>
     ${lines.length > 0 ? `<div class="md">${markdown(lines)}</div>` : '<p class="sm mut">The drive framed no question for this decision.</p>'}
   </details>`
 }
 
-function repliesHtml(need, drafts) {
-  const keys = answerKeys(need)
-  return `<div class="replies">${keys
-    .map(
-      (key) => `<label class="reply"><span class="sm mut">Reply to <span class="m">${esc(key)}</span></span>
-        <textarea rows="2" data-draft="${esc(draftKey(need, key))}" placeholder="Your answer, such as an option and why">${esc(drafts.get(draftKey(need, key)) ?? '')}</textarea></label>`
-    )
-    .join('')}
-    <p class="sm mut">Kept only while this panel stays open. Copy takes <span class="m">answer ${esc(keys[0])}: …</span> with your reply, to paste as a comment on the pull request.</p>
-  </div>`
+/** A park's questions, each key once, with the question its first decision under that key frames. */
+export function needQuestions(need) {
+  return answerKeys(need).map((key) => ({
+    key,
+    question: (need.decisions ?? []).find((d) => d.key === key)?.question ?? null
+  }))
 }
 
 /**
- * One need as the inbox draws it. `drafts` holds the replies typed so far, by `draftKey`, and
- * `replying` the keys of the needs whose reply boxes are open. The `first` need, the one the
+ * One need as the inbox draws it. `drafts` and `sends` are the answer boxes' (answer.mjs), and
+ * `replying` the keys of the needs whose answer boxes are open. The `first` need, the one the
  * head names, opens its first decision.
  */
-export function needHtml(need, nowMs, { drafts = new Map(), replying = new Set(), first: isFirst = false } = {}) {
+export function needHtml(
+  need,
+  nowMs,
+  { drafts = new Map(), sends = new Map(), replying = new Set(), first: isFirst = false } = {}
+) {
   // A park's decisions carry its questions and recommendations; any other need says its reason.
   const first = need.decisions?.[0]
   const mark = STAGES[need.stage] ?? ''
   const url = openableUrl(need.url)
-  const keys = answerKeys(need)
-  const drafted = keys.some((k) => (drafts.get(draftKey(need, k)) ?? '').trim() !== '')
+  const address = typeof need.address === 'string' && need.address !== '' ? need.address : null
+  // An answer goes to the drive's address; a park the line names no address for has no box.
+  const keys = address === null ? [] : answerKeys(need)
+  const drafted = keys.some((k) => (drafts.get(boxKey(address, k)) ?? '').trim() !== '' || sends.has(boxKey(address, k)))
   const writing = replying.has(needKey(need))
   const open = Array.isArray(need.open) ? need.open : []
   const workspaceButtons = open
@@ -212,11 +170,11 @@ export function needHtml(need, nowMs, { drafts = new Map(), replying = new Set()
     <div class="acts">
       ${url ? `<button type="button" class="primary" data-open-url="${esc(url)}">${esc(goLabel(need))} ↗</button>` : ''}
       ${!url && need.url === null ? `<span class="sm mut">No tracker link: look up ${esc(need.target)} in the tracker.</span>` : ''}
-      ${keys.length > 0 ? `<button type="button" data-copy-answer="${esc(needKey(need))}">${drafted ? 'Copy answer' : 'Copy answer line'}</button>
-        <button type="button" class="ghost" aria-expanded="${writing}" data-reply="${esc(needKey(need))}">${writing ? 'Hide reply' : drafted ? 'Edit reply' : 'Write reply'}</button>` : ''}
+      ${keys.length > 0 ? `<button type="button" aria-expanded="${writing}" data-reply="${esc(needKey(need))}">${writing ? 'Hide answer' : drafted ? 'Your answer' : 'Answer here'}</button>` : ''}
+      ${address ? `<button type="button" class="ghost" data-open-address="${esc(address)}">Thread</button>` : ''}
       ${workspaceButtons}
     </div>
-    ${keys.length > 0 && writing ? repliesHtml(need, drafts) : ''}
+    ${keys.length > 0 && writing ? answerBoxesHtml(address, needQuestions(need), { drafts, sends }) : ''}
     ${(need.decisions ?? []).length > 0 ? `<div class="decisions">${need.decisions.map((d, i) => decisionHtml(need, d, isFirst && i === 0)).join('')}</div>` : ''}
     <details class="fold" data-fold="${esc(`${needKey(need)}\ndetails`)}"><summary class="sm">Details</summary>
       <dl class="kv sm">
@@ -231,7 +189,7 @@ export function needHtml(need, nowMs, { drafts = new Map(), replying = new Set()
 }
 
 /** The whole panel for one `line.get` answer. */
-export function panelHtml(answer, { nowMs, drafts = new Map(), replying = new Set(), note = null } = {}) {
+export function panelHtml(answer, { nowMs, drafts = new Map(), sends = new Map(), replying = new Set(), note = null } = {}) {
   const noteHtml = note ? `<div class="note sm" role="status">${esc(note)}</div>` : ''
   if (answer.state === 'no-tick')
     return `${noteHtml}<div class="empty"><b>No tick has run on this host.</b><p class="sm mut">The timer writes the first line at its first tick.</p></div>`
@@ -246,7 +204,7 @@ export function panelHtml(answer, { nowMs, drafts = new Map(), replying = new Se
   const body = ordered
     .map(
       (g) => `<section class="group"><h2 class="groupHead">${esc(g.head)} <span class="mut">${g.needs.length}</span></h2>${g.needs
-        .map((n) => needHtml(n, nowMs, { drafts, replying, first: n === lead }))
+        .map((n) => needHtml(n, nowMs, { drafts, sends, replying, first: n === lead }))
         .join('')}</section>`
     )
     .join('')

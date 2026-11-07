@@ -4,8 +4,11 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { ANSWER_BUDGET_BYTES, needPaths, panelAnswer } from '../lib/panel.mjs'
 import { LINE_READ_DEADLINE_MS, LINE_REFRESH_MS } from '../lib/status-bar.mjs'
-import { answerText, groups, openableUrl, panelHtml } from '../panel/src/inbox.mjs'
-import { fixtureAnswer, harness, lineAnswer, printed } from './fake-orca.mjs'
+import { addressListHtml, threadHtml } from '../panel/src/addresses.mjs'
+import { answerLine, boxKey } from '../panel/src/answer.mjs'
+import { groups, panelHtml } from '../panel/src/inbox.mjs'
+import { openableUrl } from '../panel/src/util.mjs'
+import { askFixture, fixtureAnswer, harness, lineAnswer, printed } from './fake-orca.mjs'
 
 const PARK = '/home/me/orca/workspaces/jig/pr-456'
 
@@ -281,8 +284,42 @@ describe('the inbox', () => {
         assert.ok(Date.parse(group.needs[i - 1].since) <= Date.parse(group.needs[i].since))
   })
 
-  test('the answer line is the dashboard’s: one `answer <key>: …` per decision', () => {
-    assert.equal(answerText(['T1', 'F-3'], [' take A ', '']), 'answer T1: take A\n\nanswer F-3: ')
+  test('the answer line is the one jig send writes: `answer <key>: <text>`', () => {
+    assert.equal(answerLine('T1', ' take A '), 'answer T1: take A')
+  })
+
+  test('a park on the line opens one answer box per question, to its drive’s address', async () => {
+    const h = harness({ lineResult: printed(parkAnswer()) })
+    const answer = await h.dispatcher.getLine({})
+    const [need] = answer.line.needs
+    assert.equal(need.address, 'drive@jig-harness/jig#456')
+    const key = `${need.repo} ${need.target} ${need.cause}`
+    const closed = panelHtml(answer, { nowMs: Date.parse(answer.now) })
+    assert.doesNotMatch(closed, /Copy answer/)
+    assert.match(closed, /data-reply=.*>Answer here</)
+    assert.match(closed, /data-open-address="drive@jig-harness\/jig#456"/)
+    const open = panelHtml(answer, { nowMs: Date.parse(answer.now), replying: new Set([key]) })
+    assert.equal(open.match(/data-answer="review"/g).length, 3)
+  })
+
+  test('before it sends the box shows the text and the address; after, what jig send said', async () => {
+    const h = harness({ lineResult: printed(parkAnswer()) })
+    const answer = await h.dispatcher.getLine({})
+    const [need] = answer.line.needs
+    const replying = new Set([`${need.repo} ${need.target} ${need.cause}`])
+    const k = boxKey(need.address, 'PRRT_kwDOa1')
+    const draw = (send) => panelHtml(answer, { nowMs: Date.parse(answer.now), replying, sends: new Map([[k, send]]) })
+    const review = draw({ stage: 'review', text: 'A, records only' })
+    assert.match(review, /Sends to <span class="m">drive@jig-harness\/jig#456<\/span>/)
+    assert.match(review, /<pre class="line">answer PRRT_kwDOa1: A, records only<\/pre>/)
+    assert.match(review, /data-answer="send"/)
+    assert.doesNotMatch(draw({ stage: 'sending', text: 'A' }), /data-answer="send"/)
+    const sent = draw({ stage: 'sent', text: 'A', result: { sent: true, wrote: 'https://github.com/jig-harness/jig/pull/456#issuecomment-1', writesAs: 'liqweed', printed: 'sent …' } })
+    assert.match(sent, /<b>Sent\.<\/b>/)
+    assert.match(sent, /As liqweed\./)
+    const failed = draw({ stage: 'failed', text: 'A', result: { sent: false, why: 'refused: <b>no</b>', printed: '' } })
+    assert.match(failed, /Not sent:<\/b> refused: &lt;b&gt;no&lt;\/b&gt;/)
+    assert.match(failed, /data-draft=/, 'a failed answer can be edited and sent again')
   })
 
   test('only an https link from the line opens', () => {
@@ -300,5 +337,59 @@ describe('the inbox', () => {
     )
     assert.doesNotMatch(html, /<img/)
     assert.match(html, /&lt;img src=x/)
+  })
+})
+
+describe('the addresses view', () => {
+  const nowMs = Date.parse('2026-11-05T16:47:30.000Z')
+  const thread = (value, parked = []) => ({ state: 'answer', address: value.address, value, parked })
+
+  test('the thread lists every entry oldest first, its words quoted apart from Jig’s, each linked to its record', () => {
+    const value = askFixture('thread-long')
+    const html = threadHtml(thread(value), { nowMs })
+    assert.equal(html.match(/<li class="entry/g).length, value.thread.length)
+    assert.equal(html.match(/<blockquote class="quoted">/g).length, value.thread.length)
+    assert.match(html, /3 earlier entries left out/)
+    const kinds = [...html.matchAll(/<span class="kind">(\w+)<\/span>/g)].map((m) => m[1])
+    assert.deepEqual(kinds, value.thread.map((e) => e.kind))
+    const linked = value.thread.filter((e) => e.record.url).length
+    assert.equal(html.match(/class="link m" data-open-url=/g).length, linked)
+    assert.doesNotMatch(html, /<!-- not a marker/, "a record's words are text")
+    assert.match(html, /&lt;!-- not a marker/)
+  })
+
+  test('an empty thread says so, and names what it did not read', () => {
+    const html = threadHtml(thread(askFixture('thread-empty')), { nowMs })
+    assert.match(html, /No correspondence was read/)
+    assert.match(html, /rearm, on this machine, driver generation 2, process alive/)
+    assert.match(html, /Not read: <span class="m">dispatch-launch-claim<\/span> \(the comments did not read within 15 seconds\)/)
+  })
+
+  test('an omitted empty thread does not claim correspondence is absent', () => {
+    const value = { ...askFixture('thread-empty'), threadOmitted: 1 }
+    const html = threadHtml(thread(value), { nowMs })
+    assert.match(html, /too large to display/)
+    assert.doesNotMatch(html, /no record names this address/)
+  })
+
+  test('a thread the line has parked shows an answer box per question', () => {
+    const value = askFixture('thread-long')
+    const html = threadHtml(thread(value, [{ key: 'PRRT_kwDOa1', question: 'Q?' }, { key: 'F-3', question: null }]), { nowMs })
+    assert.equal(html.match(/data-answer="review"/g).length, 2)
+  })
+
+  test('a jig too old for jig ask says so, in the list and the thread', () => {
+    assert.match(addressListHtml({ state: 'too-old', addresses: [] }, { nowMs }), /too old for the addresses/)
+    assert.match(threadHtml({ state: 'too-old', address: 'drive@a/b#1' }, { nowMs }), /too old for this address/)
+  })
+
+  test('the list opens each address', () => {
+    const html = addressListHtml(
+      { state: 'list', tick: null, unread: null, addresses: [{ address: 'drive@a/b#1', title: 'T', url: null, waiting: { act: 'answer', since: '2026-11-05T16:00:00Z', reason: 'r', questions: ['a', 'b'] }, held: null }] },
+      { nowMs }
+    )
+    assert.match(html, /1 address with recent activity/)
+    assert.match(html, /data-open-address="drive@a\/b#1"/)
+    assert.match(html, /waits on you to<\/span> <b>answer<\/b>/)
   })
 })

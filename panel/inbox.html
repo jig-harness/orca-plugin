@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width" />
     <title>Jig</title>
     <style>
-/* The inbox in Orca's right sidebar, 350 px by default. Colours come from Orca's --orca-*
+/* The panel in Orca's right sidebar, 350 px by default. Colours come from Orca's --orca-*
    frame variables; frames get no success or warning colour, so the panel mixes its own. */
 :root {
   --fg: var(--orca-foreground, #0a0a0a);
@@ -41,8 +41,9 @@ p { margin: 0; }
   display: flex; align-items: center; gap: 8px;
   padding: 6px 12px; background: var(--bg); border-bottom: 1px solid var(--line);
 }
-.bar .name { font-weight: 600; }
-.bar button { margin-left: auto; }
+.bar #refresh { margin-left: auto; }
+.bar .tab { background: transparent; border-color: transparent; font-weight: 500; color: var(--mut); }
+.bar .tab[aria-pressed="true"] { color: var(--fg); background: var(--soft); border-color: var(--line); font-weight: 600; }
 
 button {
   font: inherit; font-size: 12px; color: var(--fg); background: var(--soft);
@@ -55,6 +56,10 @@ button:focus-visible, textarea:focus-visible, summary:focus-visible {
 }
 button.primary { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
 button.ghost { background: transparent; }
+button.link {
+  background: none; border: none; padding: 0; color: inherit;
+  text-decoration: underline; text-underline-offset: 2px;
+}
 
 .band { padding: 12px; border-bottom: 1px solid var(--line); display: grid; gap: 2px; }
 .band .title { font-size: 15px; font-weight: 600; }
@@ -70,12 +75,13 @@ button.ghost { background: transparent; }
   text-transform: uppercase; color: var(--mut);
 }
 
-.need {
+.need, .addr {
   display: grid; gap: 4px; padding: 10px; margin-bottom: 8px;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
 }
 .rowTop { display: flex; align-items: center; gap: 6px; }
 .dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--warn); }
+.dot.quiet { background: var(--mut); }
 .tgt { font-weight: 600; }
 .end { margin-left: auto; white-space: nowrap; }
 .stage { color: var(--mut); }
@@ -84,8 +90,34 @@ button.ghost { background: transparent; }
 
 .acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
-.replies { display: grid; gap: 6px; margin-top: 4px; }
-.reply { display: grid; gap: 2px; }
+.replies { display: grid; gap: 8px; margin-top: 4px; }
+.box { display: grid; gap: 4px; }
+.box .acts { margin-top: 0; }
+.box.confirm { padding: 6px 8px; border: 1px solid var(--line); border-radius: calc(var(--radius) - 4px); background: var(--soft); }
+pre.line, pre.printed {
+  margin: 0; padding: 4px 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--bg); border: 1px solid var(--line); border-radius: calc(var(--radius) - 4px);
+}
+pre.printed { margin-top: 4px; color: var(--mut); }
+.sent b { color: var(--fg); }
+.failed { color: var(--bad); }
+.failed b { font-weight: 600; }
+
+.crumb { padding: 6px 12px 0; }
+.band .kv { margin-top: 6px; }
+.thread { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.entry { display: grid; gap: 3px; padding-left: 8px; border-left: 2px solid var(--line); }
+.entry.k-question, .entry.k-answer { border-left-color: var(--warn); }
+.entry .meta { display: flex; align-items: baseline; gap: 6px; }
+.entry .kind { white-space: nowrap; font-weight: 600; text-transform: uppercase; font-size: 10px; letter-spacing: 0.05em; }
+/* The record's own words, set apart from Jig's: never styled as the panel's text. */
+.quoted {
+  margin: 0; padding: 4px 8px; white-space: pre-wrap; font-size: 12px;
+  background: var(--soft); border-radius: calc(var(--radius) - 4px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.src .link { font-size: 11px; color: var(--mut); }
 textarea {
   width: 100%; resize: vertical; font: inherit; color: var(--fg);
   background: var(--bg); border: 1px solid var(--orca-input, var(--line));
@@ -116,21 +148,15 @@ details > summary { cursor: pointer; }
   </head>
   <body>
     <nav class="bar">
-      <span class="name">Inbox</span>
-      <button type="button" id="refresh" class="ghost sm" title="Read the line again now">Read again</button>
+      <button type="button" class="tab" data-tab="inbox" aria-pressed="true">Inbox</button>
+      <button type="button" class="tab" data-tab="addresses" aria-pressed="false">Addresses</button>
+      <button type="button" id="refresh" class="ghost sm" title="Read this view again now">Read again</button>
     </nav>
     <main id="app" aria-live="polite"></main>
     <script type="module">
-// panel/src/inbox.mjs
-// The inbox, as pure functions of what the worker's `line.get` answers: what needs the person,
-// in the order and the words of the dashboard's What needs you (Jig's dashboard/src/needs-view.ts),
-// drawn as HTML text. Nothing here reaches Orca; app.mjs wires it to the frame.
-
-/** The causes a person decides; every other need is one to check. */
-const TO_DECIDE = new Set(['parked', 'needs-person', 'stopped-unknown'])
-
-/** Each stage's mark, as the dashboard draws it. */
-const STAGES = { pickup: '+', rearm: '↻', takeover: '⇄', followup: '»', notify: '*', steer: '^' }
+// panel/src/util.mjs
+// What every view of the panel shares: escaping, ages in the dashboard's words, and which links
+// open. Pure functions; nothing here reaches Orca.
 
 const MINUTE_MS = 60_000
 
@@ -163,6 +189,201 @@ function plural(n, one, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`
 }
 
+/** Only the forge's or tracker's own https link opens; anything else is not a link. */
+function openableUrl(url) {
+  return typeof url === 'string' && /^https:\/\/[^/\s]+\//i.test(url) ? url : null
+}
+
+// panel/src/answer.mjs
+// The answer box, as pure functions: one box per parked question of an address, which sends the
+// person's answer through the worker's `address.send` (`jig send <address> answer <key> <text>`).
+// Before it sends it shows the text and the address it goes to; after, what `jig send` printed,
+// as sent or not sent. The inbox and the thread draw the same box for the same question, so a
+// draft typed in one is there in the other. Drafts live only in the open page.
+
+/** A box's key across views and reads: the address and the question's key, on two lines. */
+function boxKey(address, key) {
+  return `${address}\n${key}`
+}
+
+/** The line `jig send` writes for an answer, as the person reads it before sending. */
+function answerLine(key, text) {
+  return `answer ${key}: ${String(text ?? '').trim()}`
+}
+
+function resultHtml(send) {
+  const r = send.result ?? {}
+  const printed = r.printed ? `<details class="fold"><summary class="sm">What jig send printed</summary><pre class="printed">${esc(r.printed)}</pre></details>` : ''
+  if (send.stage === 'sent') {
+    const url = openableUrl(r.wrote)
+    return `<div class="sent sm" role="status"><b>Sent.</b>${
+      r.wrote ? ` Jig wrote ${url ? `<button type="button" class="link" data-open-url="${esc(url)}">the comment ↗</button>` : `<span class="m">${esc(r.wrote)}</span>`}` : ''
+    }${r.writesAs ? `<div class="mut">As ${esc(r.writesAs)}.</div>` : ''}</div>${printed}`
+  }
+  return `<div class="failed sm" role="alert"><b>${r.unknown ? 'Delivery unknown:' : 'Not sent:'}</b> ${esc(r.why ?? 'no reason was given.')}</div>${printed}`
+}
+
+/**
+ * The box for one question of `address`. `drafts` holds what was typed, by `boxKey`, and
+ * `sends` each box's step: `review` (the text, shown before it is sent), `sending`, `sent` or
+ * `failed`, with the worker's `result`.
+ */
+function questionBoxHtml(address, question, { drafts = new Map(), sends = new Map() } = {}) {
+  const k = boxKey(address, question.key)
+  const send = sends.get(k) ?? null
+  const data = `data-address="${esc(address)}" data-key="${esc(question.key)}"`
+  const head = `<span class="sm mut">Answer <span class="m">${esc(question.key)}</span>${
+    question.question ? `: ${esc(question.question)}` : ''
+  }</span>`
+  if (send?.stage === 'review' || send?.stage === 'sending')
+    return `<div class="box confirm" data-box="${esc(k)}">${head}
+      <p class="sm">Sends to <span class="m">${esc(address)}</span>, through <span class="m">jig send</span>:</p>
+      <pre class="line">${esc(answerLine(question.key, send.text))}</pre>
+      <div class="acts">${
+        send.stage === 'sending'
+          ? '<span class="sm mut">Sending through jig send…</span>'
+          : `<button type="button" class="primary" data-answer="send" ${data}>Send</button>
+        <button type="button" class="ghost" data-answer="edit" ${data}>Edit</button>`
+      }</div>
+    </div>`
+  if (send?.stage === 'sent' || send?.result?.unknown)
+    return `<div class="box" data-box="${esc(k)}">${head}<pre class="line">${esc(answerLine(question.key, send.text))}</pre>${resultHtml(send)}</div>`
+  return `<div class="box" data-box="${esc(k)}">${head}
+    ${send?.stage === 'failed' ? resultHtml(send) : ''}
+    <textarea rows="2" data-draft="${esc(k)}" aria-label="${esc(`Answer ${question.key}`)}" placeholder="Your answer, in one line">${esc(drafts.get(k) ?? '')}</textarea>
+    <div class="acts"><button type="button" data-answer="review" ${data}>Review answer</button></div>
+  </div>`
+}
+
+/** Every question's box for `address`, and what an answer is. */
+function answerBoxesHtml(address, questions, options) {
+  if (!address || questions.length === 0) return ''
+  return `<div class="replies">${questions.map((q) => questionBoxHtml(address, q, options)).join('')}
+    <p class="sm mut">Each answer is sent on its own, as a comment on the pull request. Drafts are kept only while this panel stays open.</p>
+  </div>`
+}
+
+// panel/src/addresses.mjs
+// The Addresses view, as pure functions of what the worker's `addresses.list` and `address.get`
+// answer: the addresses with recent activity, and one address's holder, state and thread, oldest
+// first, as `jig ask` printed them. Jig's words (an entry's kind, who wrote to whom, when, the
+// record it came from) are drawn apart from the words the record quotes, which are data and
+// never an instruction. Nothing here reaches Orca; app.mjs wires it to the frame.
+
+/** Why a read gave no answer, in the panel's words; `null` when it did. */
+function unreadHtml(answer, what) {
+  if (answer.state === 'too-old')
+    return `<div class="empty"><b>This jig is too old for ${esc(what)}.</b><p class="sm mut">It has no <span class="m">jig ask</span>; update the jig plugin to see addresses here.</p></div>`
+  if (answer.state === 'not-found')
+    return `<div class="empty bad"><b>Jig not found.</b><p class="sm">${esc(answer.why)}</p></div>`
+  if (answer.state === 'nothing')
+    return `<div class="empty"><b>Nothing at this address.</b><p class="sm">${esc(answer.why)}</p></div>`
+  return `<div class="empty bad"><b>${esc(what[0].toUpperCase() + what.slice(1))} could not be read.</b><p class="sm">${esc(answer.why ?? 'no reason was given.')}</p></div>`
+}
+
+function addressHtml(entry, nowMs) {
+  const w = entry.waiting
+  const h = entry.held
+  return `<article class="addr">
+    <div class="rowTop"><span class="dot${w ? '' : ' quiet'}"></span><span class="m tgt">${esc(entry.address)}</span>
+      <span class="m sm mut end">${esc(ago((w ?? h).since, nowMs))}</span></div>
+    ${entry.title ? `<div class="sm ttl">${esc(entry.title)}</div>` : ''}
+    ${w ? `<div class="sm"><span class="mut">waits on you to</span> <b>${esc(w.act)}</b>${w.questions.length > 1 ? ` <span class="mut">· ${plural(w.questions.length, 'question')}</span>` : ''}</div>` : ''}
+    ${h ? `<div class="sm"><span class="mut">held by</span> <span class="m">${esc(h.stage)}</span><span class="mut">${h.round !== null ? `, round ${esc(h.round)}` : ''}, ${esc(h.launch)}</span></div>` : ''}
+    <div class="acts"><button type="button" class="primary" data-open-address="${esc(entry.address)}">Open the thread</button></div>
+  </article>`
+}
+
+/** The list for one `addresses.list` answer. */
+function addressListHtml(answer, { nowMs, note = null } = {}) {
+  const noteHtml = note ? `<div class="note sm" role="status">${esc(note)}</div>` : ''
+  const list = answer.addresses ?? []
+  const unread = answer.state === 'list' ? null : unreadHtml(answer, 'the addresses')
+  const head = `<header class="band"><p class="title">${esc(list.length === 0 ? 'No address with recent activity.' : `${plural(list.length, 'address', 'addresses')} with recent activity.`)}</p>
+    <p class="sm mut">What waits on a person, from <span class="m">jig ask --waiting</span>, then what the line's sessions hold.</p>${
+      answer.tick ? `\n    <p class="sm mut" title="${esc(`Tick ${answer.tick.runId}`)}">Tick finished ${esc(ago(answer.tick.finishedAt, nowMs))} ago.</p>` : ''
+    }${answer.unread ? `\n    <p class="sm mut">${esc(answer.unread)}</p>` : ''}
+  </header>`
+  return `${head}${noteHtml}${unread ?? ''}<section class="group">${list.map((e) => addressHtml(e, nowMs)).join('')}</section>`
+}
+
+/** Who holds the station, in Jig's fields. */
+function holderText(holder) {
+  if (holder === 'none' || !holder) return 'none'
+  const generation = Number.isInteger(holder.generation) ? `, driver generation ${holder.generation}` : ''
+  return `${holder.stage}, on ${holder.host}${generation}, process ${holder.process}`
+}
+
+function waitsText(waitsOn) {
+  if (waitsOn === 'none' || !waitsOn) return 'none'
+  if (typeof waitsOn.waiting === 'string') return `waiting: ${waitsOn.waiting}`
+  return `a person, to ${waitsOn.person}${waitsOn.why ? `: ${waitsOn.why}` : ''}`
+}
+
+/** Where an entry's record is: its link, opened on a press, or its path on this machine. */
+function recordHtml(record) {
+  const url = openableUrl(record?.url)
+  if (url) return `<button type="button" class="link m" data-open-url="${esc(url)}" title="${esc(url)}">${esc(record.kind)} ↗</button>`
+  return `<span class="m" title="${esc(record?.path ?? record?.url ?? '')}">${esc(record?.kind ?? 'record')}: ${esc(record?.path ?? record?.url ?? '')}</span>`
+}
+
+/** One entry: Jig's line about it, then the record's own words, quoted. */
+function entryHtml(entry, nowMs) {
+  return `<li class="entry k-${esc(entry.kind)}">
+    <div class="meta sm"><span class="kind">${esc(entry.kind)}</span>
+      <span class="m mut end" title="${esc(entry.at)}">${esc(ago(entry.at, nowMs))}</span></div>
+    <div class="m sm mut">${esc(entry.from)} → ${esc(entry.to)}</div>
+    <blockquote class="quoted">${esc(entry.text)}</blockquote>
+    <div class="sm mut src">${recordHtml(entry.record)}${entry.local ? ' · this machine only' : ''}${
+      entry.until ? ` · came off ${esc(ago(entry.until, nowMs))} ago` : ''
+    }</div>
+  </li>`
+}
+
+/**
+ * One address for one `address.get` answer: its holder, state and what it waits on, an answer
+ * box for each question the line has it parked on, then its thread, oldest first.
+ */
+function threadHtml(answer, { nowMs, drafts = new Map(), sends = new Map(), note = null } = {}) {
+  const noteHtml = note ? `<div class="note sm" role="status">${esc(note)}</div>` : ''
+  const back = `<div class="crumb"><button type="button" class="ghost sm" data-tab="addresses">← Addresses</button></div>`
+  if (answer.state !== 'answer')
+    return `${back}${answer.address ? `<p class="pad m">${esc(answer.address)}</p>` : ''}${noteHtml}${unreadHtml(answer, 'this address')}`
+  const a = answer.value
+  const url = openableUrl(a.url)
+  const thread = Array.isArray(a.thread) ? a.thread : []
+  const omitted = Number.isInteger(a.threadOmitted) ? a.threadOmitted : 0
+  const unread = (a.sources?.records ?? []).filter((r) => r.read === false)
+  return `${back}<header class="band">
+    <p class="title m">${esc(a.address)}</p>
+    ${a.title ? `<p class="sm ttl">${esc(a.title)}</p>` : ''}
+    <dl class="kv sm">
+      <dt>holder</dt><dd>${esc(holderText(a.holder))}</dd>
+      <dt>state</dt><dd><span class="m">${esc(a.state)}</span>${a.stateDetail ? `<span class="mut">, ${esc(a.stateDetail)}</span>` : ''}</dd>
+      <dt>waits on</dt><dd>${esc(waitsText(a.waitsOn))}</dd>
+      ${a.last ? `<dt>last</dt><dd><span class="m">${esc(a.last.class)}</span><span class="mut">, ${esc(ago(a.last.at, nowMs))} ago: ${esc(a.last.reason)}</span></dd>` : ''}
+    </dl>
+    ${url ? `<div class="acts"><button type="button" data-open-url="${esc(url)}">Open the pull request ↗</button></div>` : ''}
+  </header>${noteHtml}
+  ${answer.parked.length > 0 ? `<section class="group"><h2 class="groupHead">To answer <span class="mut">${answer.parked.length}</span></h2>${answerBoxesHtml(a.address, answer.parked, { drafts, sends })}</section>` : ''}
+  <section class="group"><h2 class="groupHead">Thread <span class="mut">${thread.length}</span></h2>
+    ${omitted > 0 ? `<p class="sm mut">${esc(plural(omitted, 'earlier entry', 'earlier entries'))} left out. <button type="button" class="link" data-thread-all="${esc(a.address)}">Show all</button></p>` : ''}
+    ${thread.length === 0 ? `<p class="sm mut">${omitted > 0 ? 'The correspondence was too large to display; read it with jig ask.' : unread.length > 0 ? 'No correspondence was read; some sources could not be read.' : 'No correspondence yet: no record names this address.'}</p>` : `<ol class="thread">${thread.map((e) => entryHtml(e, nowMs)).join('')}</ol>`}
+    ${unread.length > 0 ? `<p class="sm mut">Not read: ${unread.map((r) => `<span class="m">${esc(r.record)}</span>${r.detail ? ` (${esc(r.detail)})` : ''}`).join('; ')}.</p>` : ''}
+  </section>`
+}
+
+// panel/src/inbox.mjs
+// The inbox, as pure functions of what the worker's `line.get` answers: what needs the person,
+// in the order and the words of the dashboard's What needs you (Jig's dashboard/src/needs-view.ts),
+// drawn as HTML text. Nothing here reaches Orca; app.mjs wires it to the frame.
+
+/** The causes a person decides; every other need is one to check. */
+const TO_DECIDE = new Set(['parked', 'needs-person', 'stopped-unknown'])
+
+/** Each stage's mark, as the dashboard draws it. */
+const STAGES = { pickup: '+', rearm: '↻', takeover: '⇄', followup: '»', notify: '*', steer: '^' }
+
 function recordedWord(need) {
   if (need.cause === 'parked') return 'parked for a person'
   if (need.cause === 'assigner-cannot-write') return 'assigner cannot write'
@@ -192,24 +413,9 @@ function answerKeys(need) {
   return [...new Set((need.decisions ?? []).map((d) => d.key))]
 }
 
-/** The answer line the dashboard copies: `answer <key>: <reply>`, one per key, blank-line apart. */
-function answerText(keys, replies) {
-  return keys.map((key, i) => `answer ${key}: ${(replies[i] ?? '').trim()}`).join('\n\n')
-}
-
-/** Only the forge's or tracker's own https link opens; anything else is not a link. */
-function openableUrl(url) {
-  return typeof url === 'string' && /^https:\/\/[^/\s]+\//i.test(url) ? url : null
-}
-
 /** A need's key across reads, for its drafts and its open folds. */
 function needKey(need) {
   return `${need.repo} ${need.target} ${need.cause}`
-}
-
-/** A draft's or a decision's key: the need's key and the decision's, on two lines. */
-function draftKey(need, key) {
-  return `${needKey(need)}\n${key}`
 }
 
 /**
@@ -283,37 +489,39 @@ function headHtml(answer, nowMs) {
 function decisionHtml(need, decision, open) {
   const lines = Array.isArray(decision.lines) ? decision.lines : []
   const named = decision.decisionClass ? `${decision.decisionClass}, ` : ''
-  return `<details class="decision" data-fold="${esc(draftKey(need, decision.key))}"${open ? ' open' : ''}>
+  return `<details class="decision" data-fold="${esc(`${needKey(need)}\n${decision.key}`)}"${open ? ' open' : ''}>
     <summary><span class="q">${esc(decision.question ?? `Decision ${decision.key}`)}</span>
       <span class="sm mut"> ${esc(named)}${esc(decision.kind)} <span class="m">${esc(decision.key)}</span></span></summary>
     ${lines.length > 0 ? `<div class="md">${markdown(lines)}</div>` : '<p class="sm mut">The drive framed no question for this decision.</p>'}
   </details>`
 }
 
-function repliesHtml(need, drafts) {
-  const keys = answerKeys(need)
-  return `<div class="replies">${keys
-    .map(
-      (key) => `<label class="reply"><span class="sm mut">Reply to <span class="m">${esc(key)}</span></span>
-        <textarea rows="2" data-draft="${esc(draftKey(need, key))}" placeholder="Your answer, such as an option and why">${esc(drafts.get(draftKey(need, key)) ?? '')}</textarea></label>`
-    )
-    .join('')}
-    <p class="sm mut">Kept only while this panel stays open. Copy takes <span class="m">answer ${esc(keys[0])}: …</span> with your reply, to paste as a comment on the pull request.</p>
-  </div>`
+/** A park's questions, each key once, with the question its first decision under that key frames. */
+function needQuestions(need) {
+  return answerKeys(need).map((key) => ({
+    key,
+    question: (need.decisions ?? []).find((d) => d.key === key)?.question ?? null
+  }))
 }
 
 /**
- * One need as the inbox draws it. `drafts` holds the replies typed so far, by `draftKey`, and
- * `replying` the keys of the needs whose reply boxes are open. The `first` need, the one the
+ * One need as the inbox draws it. `drafts` and `sends` are the answer boxes' (answer.mjs), and
+ * `replying` the keys of the needs whose answer boxes are open. The `first` need, the one the
  * head names, opens its first decision.
  */
-function needHtml(need, nowMs, { drafts = new Map(), replying = new Set(), first: isFirst = false } = {}) {
+function needHtml(
+  need,
+  nowMs,
+  { drafts = new Map(), sends = new Map(), replying = new Set(), first: isFirst = false } = {}
+) {
   // A park's decisions carry its questions and recommendations; any other need says its reason.
   const first = need.decisions?.[0]
   const mark = STAGES[need.stage] ?? ''
   const url = openableUrl(need.url)
-  const keys = answerKeys(need)
-  const drafted = keys.some((k) => (drafts.get(draftKey(need, k)) ?? '').trim() !== '')
+  const address = typeof need.address === 'string' && need.address !== '' ? need.address : null
+  // An answer goes to the drive's address; a park the line names no address for has no box.
+  const keys = address === null ? [] : answerKeys(need)
+  const drafted = keys.some((k) => (drafts.get(boxKey(address, k)) ?? '').trim() !== '' || sends.has(boxKey(address, k)))
   const writing = replying.has(needKey(need))
   const open = Array.isArray(need.open) ? need.open : []
   const workspaceButtons = open
@@ -336,11 +544,11 @@ function needHtml(need, nowMs, { drafts = new Map(), replying = new Set(), first
     <div class="acts">
       ${url ? `<button type="button" class="primary" data-open-url="${esc(url)}">${esc(goLabel(need))} ↗</button>` : ''}
       ${!url && need.url === null ? `<span class="sm mut">No tracker link: look up ${esc(need.target)} in the tracker.</span>` : ''}
-      ${keys.length > 0 ? `<button type="button" data-copy-answer="${esc(needKey(need))}">${drafted ? 'Copy answer' : 'Copy answer line'}</button>
-        <button type="button" class="ghost" aria-expanded="${writing}" data-reply="${esc(needKey(need))}">${writing ? 'Hide reply' : drafted ? 'Edit reply' : 'Write reply'}</button>` : ''}
+      ${keys.length > 0 ? `<button type="button" aria-expanded="${writing}" data-reply="${esc(needKey(need))}">${writing ? 'Hide answer' : drafted ? 'Your answer' : 'Answer here'}</button>` : ''}
+      ${address ? `<button type="button" class="ghost" data-open-address="${esc(address)}">Thread</button>` : ''}
       ${workspaceButtons}
     </div>
-    ${keys.length > 0 && writing ? repliesHtml(need, drafts) : ''}
+    ${keys.length > 0 && writing ? answerBoxesHtml(address, needQuestions(need), { drafts, sends }) : ''}
     ${(need.decisions ?? []).length > 0 ? `<div class="decisions">${need.decisions.map((d, i) => decisionHtml(need, d, isFirst && i === 0)).join('')}</div>` : ''}
     <details class="fold" data-fold="${esc(`${needKey(need)}\ndetails`)}"><summary class="sm">Details</summary>
       <dl class="kv sm">
@@ -355,7 +563,7 @@ function needHtml(need, nowMs, { drafts = new Map(), replying = new Set(), first
 }
 
 /** The whole panel for one `line.get` answer. */
-function panelHtml(answer, { nowMs, drafts = new Map(), replying = new Set(), note = null } = {}) {
+function panelHtml(answer, { nowMs, drafts = new Map(), sends = new Map(), replying = new Set(), note = null } = {}) {
   const noteHtml = note ? `<div class="note sm" role="status">${esc(note)}</div>` : ''
   if (answer.state === 'no-tick')
     return `${noteHtml}<div class="empty"><b>No tick has run on this host.</b><p class="sm mut">The timer writes the first line at its first tick.</p></div>`
@@ -370,7 +578,7 @@ function panelHtml(answer, { nowMs, drafts = new Map(), replying = new Set(), no
   const body = ordered
     .map(
       (g) => `<section class="group"><h2 class="groupHead">${esc(g.head)} <span class="mut">${g.needs.length}</span></h2>${g.needs
-        .map((n) => needHtml(n, nowMs, { drafts, replying, first: n === lead }))
+        .map((n) => needHtml(n, nowMs, { drafts, sends, replying, first: n === lead }))
         .join('')}</section>`
     )
     .join('')
@@ -378,69 +586,129 @@ function panelHtml(answer, { nowMs, drafts = new Map(), replying = new Set(), no
 }
 
 // panel/src/app.mjs
-// The panel in Orca's frame: asks the worker for the line, draws the inbox, and answers its
-// buttons. The pull request opens through `orca.shell.openExternal`, which needs the click; the
-// workspace opens through the worker; the answer line is copied here. Drafts live only in this
-// page, so the panel stores nothing.
+// The panel in Orca's frame: asks the worker for the line and the addresses, draws the inbox,
+// the address list and a thread, and answers their buttons. The pull request opens through
+// `orca.shell.openExternal`, which needs the click; the workspace opens through the worker; an
+// answer is sent by the worker through `jig send`, and shown as sent only once it says so.
+// Drafts live only in this page, so the panel stores nothing.
 
 /** How often the open panel reads again when no tick told it to. */
 const POLL_MS = 60_000
 /** The worker's read may run 30 s; the request waits a little longer. */
 const REQUEST_TIMEOUT_MS = 45_000
+/** One `jig ask` or `jig send` may run 50 s, and wait for one before it; Orca allows 120 s. */
+const ADDRESS_TIMEOUT_MS = 110_000
 
 const orca = window.orca
 const app = document.getElementById('app')
 
 const view = {
+  /** `inbox`, `addresses` or `thread`. */
+  tab: 'inbox',
   answer: null,
   /** `performance.now()` at the read, so the line's clock moves on with this page's. */
   readAt: 0,
+  list: null,
+  thread: null,
+  /** The address the thread view shows, and whether all of its thread was asked for. */
+  address: null,
+  all: false,
   drafts: new Map(),
+  /** Each answer box's step, by `boxKey`: review, sending, sent or failed. */
+  sends: new Map(),
   replying: new Set(),
   folds: new Map(),
   note: null,
   pending: false
 }
 
-const request = (name, input) => orca.plugin.request(name, input, { timeoutMs: REQUEST_TIMEOUT_MS })
+const request = (name, input, timeoutMs = REQUEST_TIMEOUT_MS) => orca.plugin.request(name, input, { timeoutMs })
+
+const workerSilent = (error) => `the worker did not answer (${error?.code ?? 'error'}: ${error?.message ?? error}).`
 
 function nowMs() {
   const said = Date.parse(view.answer?.now ?? '')
   return Number.isFinite(said) ? said + (performance.now() - view.readAt) : Date.now()
 }
 
+function bodyHtml() {
+  const options = { nowMs: nowMs(), drafts: view.drafts, sends: view.sends, note: view.note }
+  if (view.tab === 'addresses')
+    return view.list ? addressListHtml(view.list, options) : '<p class="sm mut pad">Reading the addresses…</p>'
+  if (view.tab === 'thread')
+    return view.thread && view.thread.address === view.address
+      ? threadHtml(view.thread, options)
+      : `<p class="sm mut pad">Reading the thread of <span class="m">${esc(view.address)}</span>…</p>`
+  return view.answer ? panelHtml(view.answer, { ...options, replying: view.replying }) : '<p class="sm mut pad">Reading the line…</p>'
+}
+
 function render() {
-  // A redraw would take the cursor out of a reply being typed; it waits for the box to lose focus.
+  // A redraw would take the cursor out of an answer being typed; it waits for the box to lose focus.
   if (document.activeElement?.tagName === 'TEXTAREA' && app.contains(document.activeElement)) {
     view.pending = true
     return
   }
   view.pending = false
-  if (!view.answer) return
+  for (const tab of document.querySelectorAll('.bar [data-tab]'))
+    tab.setAttribute('aria-pressed', String(tab.dataset.tab === (view.tab === 'thread' ? 'addresses' : view.tab)))
   for (const fold of app.querySelectorAll('details[data-fold]')) view.folds.set(fold.dataset.fold, fold.open)
-  app.innerHTML = panelHtml(view.answer, {
-    nowMs: nowMs(),
-    drafts: view.drafts,
-    replying: view.replying,
-    note: view.note
-  })
+  app.innerHTML = bodyHtml()
   for (const fold of app.querySelectorAll('details[data-fold]'))
     if (view.folds.has(fold.dataset.fold)) fold.open = view.folds.get(fold.dataset.fold)
 }
 
-async function load(fresh = false) {
+async function loadLine(fresh = false) {
   try {
-    const answer = await request('line.get', fresh ? { fresh: true } : {})
-    view.answer = answer
+    view.answer = await request('line.get', fresh ? { fresh: true } : {})
     view.readAt = performance.now()
+    if (view.tab === 'thread' && view.address) loadThread(view.address)
   } catch (error) {
-    view.answer = { state: 'unreadable', why: `the worker did not answer (${error?.code ?? 'error'}: ${error?.message ?? error}).` }
+    view.answer = { state: 'unreadable', why: workerSilent(error) }
   }
   render()
 }
 
-function needOf(key) {
-  return view.answer?.line?.needs.find((n) => needKey(n) === key) ?? null
+async function loadList(fresh = false) {
+  try {
+    view.list = await request('addresses.list', fresh ? { fresh: true } : {}, ADDRESS_TIMEOUT_MS)
+  } catch (error) {
+    view.list = { state: 'unreadable', why: workerSilent(error), addresses: [] }
+  }
+  render()
+}
+
+let threadRead = 0
+async function loadThread(address) {
+  const generation = ++threadRead
+  const all = view.all
+  let answer
+  try {
+    answer = await request('address.get', { address, all }, ADDRESS_TIMEOUT_MS)
+  } catch (error) {
+    answer = { state: 'unreadable', why: workerSilent(error), address }
+  }
+  // A thread asked for before the person moved on is not drawn over the one they opened.
+  if (view.address !== address || view.all !== all || threadRead !== generation) return
+  view.thread = answer
+  render()
+}
+
+function show(tab) {
+  view.tab = tab
+  view.note = null
+  render()
+  if (tab === 'addresses') loadList()
+  if (tab === 'inbox') loadLine()
+}
+
+function openAddress(address) {
+  view.tab = 'thread'
+  view.address = address
+  view.all = false
+  view.thread = null
+  view.note = null
+  render()
+  loadThread(address)
 }
 
 /** Copies `text` the one way a frame allows: `execCommand` inside the click. */
@@ -464,6 +732,38 @@ function copy(text) {
 function say(note) {
   view.note = note
   render()
+}
+
+/** The review, send and edit steps of one answer box. */
+function answerStep(step, address, key) {
+  const k = boxKey(address, key)
+  if (step === 'edit') {
+    view.sends.delete(k)
+    return render()
+  }
+  if (step === 'review') {
+    const text = (view.drafts.get(k) ?? '').trim()
+    if (text === '') return say('Write the answer first.')
+    view.sends.set(k, { stage: 'review', text })
+    return render()
+  }
+  const send = view.sends.get(k)
+  if (step !== 'send' || send?.stage !== 'review') return
+  view.sends.set(k, { stage: 'sending', text: send.text })
+  render()
+  request('address.send', { address, verb: 'answer', key, text: send.text }, ADDRESS_TIMEOUT_MS)
+    .then((result) => {
+      view.sends.set(k, { stage: result?.sent === true ? 'sent' : 'failed', text: send.text, result })
+      if (result?.sent === true) view.drafts.delete(k)
+    })
+    .catch((error) =>
+      view.sends.set(k, {
+        stage: 'failed',
+        text: send.text,
+        result: { unknown: true, why: `${workerSilent(error)} Whether it was sent is not known: read the pull request before sending again.` }
+      })
+    )
+    .finally(render)
 }
 
 app.addEventListener('input', (event) => {
@@ -491,12 +791,14 @@ app.addEventListener('click', (event) => {
     else say(copy(url) ? 'This Orca client opens no links from a panel; the link is copied.' : `Open ${url}`)
     return
   }
-  if (d.copyAnswer !== undefined) {
-    const need = needOf(d.copyAnswer)
-    if (!need) return
-    const keys = answerKeys(need)
-    const text = answerText(keys, keys.map((k) => view.drafts.get(draftKey(need, k)) ?? ''))
-    return say(copy(text) ? `Copied the answer line for ${need.target}.` : 'The frame refused the copy.')
+  if (d.answer !== undefined) return answerStep(d.answer, d.address, d.key)
+  if (d.openAddress !== undefined) return openAddress(d.openAddress)
+  if (d.tab !== undefined) return show(d.tab)
+  if (d.threadAll !== undefined) {
+    view.all = true
+    view.thread = null
+    render()
+    return loadThread(d.threadAll)
   }
   if (d.reply !== undefined) {
     if (view.replying.has(d.reply)) view.replying.delete(d.reply)
@@ -510,15 +812,27 @@ app.addEventListener('click', (event) => {
   }
 })
 
+for (const tab of document.querySelectorAll('.bar [data-tab]')) tab.addEventListener('click', () => show(tab.dataset.tab))
+
 document.getElementById('refresh')?.addEventListener('click', () => {
   view.note = null
-  load(true)
+  if (view.tab === 'addresses') return loadList(true)
+  if (view.tab === 'thread') {
+    view.thread = null
+    render()
+    return loadThread(view.address)
+  }
+  loadLine(true)
 })
 
-orca.plugin.on?.('line.changed', () => load())
-setInterval(() => load(), POLL_MS)
-app.innerHTML = '<p class="sm mut pad">Reading the line…</p>'
-load()
+// The line keeps the inbox, the answer boxes' questions and the ages current; the list follows it.
+orca.plugin.on?.('line.changed', () => {
+  loadLine()
+  if (view.tab === 'addresses') loadList()
+})
+setInterval(() => loadLine(), POLL_MS)
+render()
+loadLine()
     </script>
   </body>
 </html>

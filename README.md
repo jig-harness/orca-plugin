@@ -95,15 +95,30 @@ buttons:
 - **Answer on the pull request** (or open it, or the tracker item) opens
   the link in your browser. Orca asks the first time the plugin opens a
   host.
-- **Copy answer line** copies `answer <key>: <reply>` for each decision,
-  ready to paste as a comment on the pull request. **Write reply** opens a
-  box per decision; what you type there is kept only while the panel stays
-  open.
+- **Answer here** opens a box per decision. **Review answer** shows the
+  line that will be sent, `answer <key>: <your text>`, and the address it
+  goes to; **Send** sends it with `jig send <address> answer <key> <text>`,
+  as the login Jig's `gh` is signed in as. The box then shows what
+  `jig send` printed, with a link to the comment it wrote, or why it was not
+  sent. Nothing is shown as sent before Jig says so. Each answer is one line;
+  what you type is kept only while the panel stays open.
+- **Thread** opens the drive's address in the Addresses view.
 - **Open the workspace** shows the Orca workspace that holds the work. It
   appears only when the line names a workspace Orca knows on this machine.
 
-**Read again** reads the line now; the panel also reads it after each tick
-and every minute. In a web browser connected to `orca serve`, links are
+**Addresses**, beside Inbox, lists the addresses with recent activity:
+each one `jig ask --waiting` says waits on a person, then each one a
+session on the line holds. Opening one shows who holds it, its state, what
+it waits on, its last outcome and its thread, as `jig ask <address>
+--thread` prints it: the newest 20 entries, oldest first (**Show all** for
+every one). Each entry says what it is (a request, a question, an answer, a
+launch or an outcome), who wrote it to whom and when, then quotes the
+record's own words in a box of their own, and links to the record. A parked
+drive's open questions have the same answer boxes as the inbox, sharing
+their drafts.
+
+**Read again** reads the view you are on now; the panel also reads the line
+after each tick and every minute. In a web browser connected to `orca serve`, links are
 copied instead of opened. How the panel is built is in
 [docs/panel.md](docs/panel.md).
 
@@ -117,8 +132,10 @@ copied instead of opened. How the panel is built is in
   channel.
 - It does not replace the dispatcher's timer: the timer still catches what
   no status change announces, such as a merge or a new tracker item.
-- It does not answer for you. The panel copies an answer line; you post
-  it on the pull request. Jig's full dashboard stays
+- It does not answer for you, and it is not a chat. It sends only an
+  answer you wrote and pressed Send on, only through `jig send`, and only
+  the `answer` verb; it never types into an agent's terminal, and keeps no
+  thread or reply of its own. Jig's full dashboard stays
   `jig dispatch dashboard`.
 - It runs ticks only for workspaces on this machine. A workspace on an SSH
   or WSL host is logged and skipped.
@@ -159,7 +176,9 @@ copied instead of opened. How the panel is built is in
   the `PATH` Orca starts with ([Jig's plugin
   README](https://github.com/jig-harness/jig/blob/main/plugin/README.md)
   says how). `--apply` also needs the machine's dispatch file; without it
-  each tick fails with a notification saying so.
+  each tick fails with a notification saying so. The panel's Addresses
+  view and answer box need a jig with `jig ask` and `jig send` (0.147.0 or
+  later); an older one is named too old there.
 - The repositories it should wake the dispatcher for have `.config/jig.yaml`.
 
 ## Install

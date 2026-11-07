@@ -71,14 +71,20 @@ pinned by `JIG_REF`. Bump that pin by hand, as you bump `ORCA_REF`.
   `jig dispatch line --json` in a fresh home, and checks that the plugin's
   `lineStatus` reads what it prints. It checks no tick yet, a fresh tick's
   needs, and an overdue tick.
+- `tests/contracts/ask-send.mjs` runs the pinned Jig's `jig ask` and
+  `jig send` through the plugin's address handlers, in a fresh home and
+  with no forge call. It checks `ask --waiting` with no line, that a usage
+  error of `ask` or `send` is Jig's own rather than a jig too old, and that
+  Jig refuses an answer from a session the line started.
 
-Both run with Bun, which runs Jig's TypeScript, and need no install. They
+They run with Bun, which runs Jig's TypeScript, and need no install. They
 are not `*.test.mjs` files, so `node --test` skips them. To run them
 locally:
 
 ```sh
 JIG_DIR=/path/to/jig bun --no-env-file tests/contracts/guard-record.mjs
 JIG_DIR=/path/to/jig bun --no-env-file tests/contracts/dispatch-line.mjs
+JIG_DIR=/path/to/jig bun --no-env-file tests/contracts/ask-send.mjs
 ```
 
 ## Loading it while you work

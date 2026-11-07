@@ -5,7 +5,7 @@
   "id": "jig",
   "name": "Jig",
   "version": "0.3.0",
-  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, refuses agent launches into a worktree jig gc is removing, shows the dispatch line in the status bar, and opens a panel on what that line needs from you.",
+  "description": "Wakes Jig's dispatcher when an agent stops for input or finishes in a repository that uses Jig, shows what the tick did, refuses agent launches into a worktree jig gc is removing, shows the dispatch line in the status bar, and opens a panel on what that line needs from you and on each address's thread, where you can answer a parked question through jig send.",
   "repository": "https://github.com/jig-harness/orca-plugin",
   "license": "MIT",
   "engines": { "orca": ">=1.4.248" },
