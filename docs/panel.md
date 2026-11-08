@@ -2,7 +2,7 @@
 title: How the panel is built
 type: architecture
 status: active
-last_updated: 2026-11-07
+last_updated: 2026-11-08
 description: The Jig panel's inbox and addresses, where its source and built file live, the worker requests it makes, what each button does, how an answer is sent, and how it is tested.
 ---
 
@@ -59,8 +59,13 @@ The panel asks its worker through `plugin.request`
 | `address.get` | `{ address, all }` → `jig ask --thread [--all] --json -- <address>`: `state` (`answer`, `nothing`, `too-old`, `not-found`, `unreadable`, `refused`), Jig's answer as `value`, and `parked`, the questions the line's need for that address waits on, each `{ key, question }`. |
 | `address.send` | `{ address, verb, key, text }` → `jig send -- <address> answer <key> <text>`: `{ sent: true, wrote, writesAs, printed }` once Jig has written, else `{ sent: false, why, printed }`. |
 
-A need's workspaces are, in order: the line's sessions on the same
-repository and target, the need's own `workspaces` (a double claim's), and
+A need's workspace is the one Jig names for it: `workspace`, the workspace
+that holds its work (Jig 0.155.0 and later), with a double claim's
+`workspaces` beside it. When Jig names none (`null`), the need offers only a
+double claim's workspaces, never the one its notification went to, which can
+be the repository's notices workspace. A line from an older Jig has no
+`workspace` field; its need's workspaces are then, in order, the line's
+sessions on the same repository and target, the need's own `workspaces`, and
 the workspace its notification went to (`notified.workspace`). Only those
 `workspace.list` lists on this machine, or that a `workspace.created` event
 reported, are kept in `open`; a need with none gets no workspace button.
