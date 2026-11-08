@@ -93,6 +93,33 @@ describe('the panel worker', () => {
     assert.equal(claim.workspaces.length, 2)
   })
 
+  test("a need's own workspace stands over the sessions and the notification", () => {
+    const answer = parkAnswer()
+    const line = answer.value.line
+    const need = { ...line.needs[0], workspace: '/home/me/orca/workspaces/jig/held-here' }
+    line.sessions = [{ repo: need.repo, target: need.target, workspace: '/elsewhere/session' }]
+    assert.deepEqual(needPaths(need, line), ['/home/me/orca/workspaces/jig/held-here'])
+  })
+
+  test('a need whose workspace is null offers none, rather than the notification’s', () => {
+    const answer = parkAnswer()
+    const need = { ...answer.value.line.needs[0], workspace: null }
+    assert.equal(need.notified.workspace, PARK)
+    assert.deepEqual(needPaths(need, answer.value.line), [])
+  })
+
+  test('a double claim with no named workspace still offers the workspaces that hold it', () => {
+    const claim = { ...fixtureAnswer('long-needs').value.line.needs.find((n) => n.cause === 'double-claim'), workspace: null }
+    assert.deepEqual(needPaths(claim, { sessions: [] }), claim.workspaces)
+  })
+
+  test('a line from before Jig named the workspace falls back to the notification’s', () => {
+    const answer = parkAnswer()
+    const [need] = answer.value.line.needs
+    assert.equal(Object.hasOwn(need, 'workspace'), false, 'the fixture is a line from before the field')
+    assert.deepEqual(needPaths(need, answer.value.line), [PARK])
+  })
+
   test('the line is read once for concurrent requests, and kept for a minute', async () => {
     const h = harness({ statusBar: true, holdLines: true })
     const first = h.dispatcher.getLine({})
