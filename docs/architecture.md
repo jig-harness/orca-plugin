@@ -2,7 +2,7 @@
 title: How the worker is built
 type: architecture
 status: active
-last_updated: 2026-11-06
+last_updated: 2026-11-07
 description: The plugin's concerns, the workspace map they share, its timers, and why the launch hook never waits.
 ---
 
@@ -30,7 +30,7 @@ Claude Code or Codex.
 | Launch guard | `agent.launch.before` | Writes a launch marker, then refuses the launch if gc holds an admission for that worktree ([launch-guard.md](launch-guard.md)) |
 | Heartbeat | a timer | Writes the guard record's heartbeat and re-lists workspaces |
 | Status bar | the plugin's start, each tick, a timer | Reads `jig dispatch line --json` and updates the item ([dispatch-line.md](dispatch-line.md)) |
-| Panel | the panel's `line.get` and `workspace.open` requests | Hands the panel the status bar's newest read, and opens a workspace by its path ([panel.md](panel.md)) |
+| Panel | the panel's requests | Hands the panel the status bar's newest read, opens a workspace by its path, reads an address with `jig ask`, and sends an answer with `jig send` ([panel.md](panel.md)) |
 
 `createDispatcher` takes everything the worker touches as arguments: the
 host API, the log, a program runner, the file system, a clock, the
@@ -87,6 +87,8 @@ seconds or the worker has crashed.
 | Heartbeat and workspace re-list | every minute |
 | Status bar read | at start, after each tick, and every minute; never two at once |
 | A status bar read's deadline | 30 seconds, finding the command and reading the settings included |
+| A panel's `jig ask` or `jig send` | 50 seconds, finding the command included; one `jig ask` at a time |
+| A panel's address request in all | 100 seconds: the wait for its turn, `jig ask` and the line read together |
 | A stopped program | SIGTERM, then SIGKILL after two seconds, then given up after two more |
 
 Every program the plugin runs is started without a shell, with its arguments

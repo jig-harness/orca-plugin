@@ -1,0 +1,48 @@
+{
+  "v": 1,
+  "address": "drive@example-org/web#485",
+  "station": "drive",
+  "repo": "example-org/web",
+  "key": "485",
+  "title": "Cache the session lookup",
+  "url": "https://github.com/example-org/web/pull/485",
+  "holder": {
+    "stage": "rearm",
+    "host": "this machine",
+    "generation": 2,
+    "process": "alive",
+    "why": "its process 31337 runs",
+    "local": {
+      "account": "work-b",
+      "record": "20261105T160102Z-web-485",
+      "workspace": "/home/ophir/orca/workspaces/web/pr-485"
+    }
+  },
+  "state": "running",
+  "stateDetail": "round 2, ledger written 2026-11-05T16:44:00.000Z",
+  "waitsOn": {
+    "waiting": "the drive's next round"
+  },
+  "last": null,
+  "sources": {
+    "records": [
+      {
+        "record": "pull-request",
+        "read": true
+      },
+      {
+        "record": "drive-ledger",
+        "read": true
+      },
+      {
+        "record": "dispatch-launch-claim",
+        "read": false,
+        "detail": "the comments did not read within 15 seconds"
+      }
+    ],
+    "forgeCalls": 2,
+    "trackerCalls": 0
+  },
+  "thread": [],
+  "threadOmitted": 0
+}

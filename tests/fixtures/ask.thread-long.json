@@ -1,0 +1,247 @@
+{
+  "v": 1,
+  "address": "drive@jig-harness/jig#456",
+  "station": "drive",
+  "repo": "jig-harness/jig",
+  "key": "456",
+  "title": "Give every station a constant address",
+  "url": "https://github.com/jig-harness/jig/pull/456",
+  "holder": "none",
+  "state": "HITL_PARKED",
+  "stateDetail": "stopped exit 8 on 2026-11-05T09:12:00.000Z; 3 parked questions unanswered: thread PRRT_kwDOa1, finding F-3, thread PRRT_kwDOa4",
+  "waitsOn": {
+    "person": "answer",
+    "why": "3 parked questions: thread PRRT_kwDOa1, finding F-3, thread PRRT_kwDOa4"
+  },
+  "last": {
+    "class": "parked",
+    "at": "2026-11-05T09:12:02.311Z",
+    "reason": "exit 8 (parked)",
+    "from": "outcome log"
+  },
+  "sources": {
+    "records": [
+      {
+        "record": "forge-login",
+        "read": true
+      },
+      {
+        "record": "pull-request",
+        "read": true
+      },
+      {
+        "record": "drive-ledger",
+        "read": true
+      },
+      {
+        "record": "dispatch-launch-claim",
+        "read": true
+      },
+      {
+        "record": "label-event",
+        "read": true
+      },
+      {
+        "record": "dispatch-launch",
+        "read": true,
+        "local": true
+      },
+      {
+        "record": "dispatch-outcome",
+        "read": true,
+        "local": true
+      },
+      {
+        "record": "drive-mailbox",
+        "read": true,
+        "local": true
+      }
+    ],
+    "forgeCalls": 3,
+    "trackerCalls": 0
+  },
+  "thread": [
+    {
+      "at": "2026-11-04T08:02:11Z",
+      "kind": "request",
+      "from": "liqweed",
+      "to": "drive@jig-harness/jig#456",
+      "text": "label jig:drive",
+      "record": {
+        "kind": "label-event",
+        "url": "https://github.com/jig-harness/jig/pull/456"
+      },
+      "until": "2026-11-04T08:20:40Z"
+    },
+    {
+      "at": "2026-11-04T08:20:31.118Z",
+      "kind": "launch",
+      "from": "dispatcher",
+      "to": "drive@jig-harness/jig#456",
+      "text": "rearm",
+      "record": {
+        "kind": "dispatch-launch-claim",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670001"
+      }
+    },
+    {
+      "at": "2026-11-04T09:41:02.551Z",
+      "kind": "question",
+      "from": "drive@jig-harness/jig#456",
+      "to": "a person",
+      "text": "Should the address grammar allow a repository's short name where the machine dispatches exactly one repository of that name?",
+      "record": {
+        "kind": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670002"
+      }
+    },
+    {
+      "at": "2026-11-04T09:41:02.551Z",
+      "kind": "outcome",
+      "from": "drive@jig-harness/jig#456",
+      "to": "a person",
+      "text": "stopped exit 8 (HITL_PARKED)",
+      "record": {
+        "kind": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670002"
+      }
+    },
+    {
+      "at": "2026-11-04T09:41:04.090Z",
+      "kind": "outcome",
+      "from": "drive@jig-harness/jig#456",
+      "to": "dispatcher",
+      "text": "parked: exit 8 (parked)",
+      "record": {
+        "kind": "dispatch-outcome",
+        "path": "/home/ophir/.local/state/jig/dispatch/state.sqlite"
+      },
+      "local": true
+    },
+    {
+      "at": "2026-11-04T11:15:27Z",
+      "kind": "answer",
+      "from": "liqweed",
+      "to": "drive@jig-harness/jig#456",
+      "text": "answer PRRT_kwDOa0: Yes, but only when exactly one repository has that name; otherwise refuse and list them.",
+      "record": {
+        "kind": "pull-request-comment",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670003"
+      }
+    },
+    {
+      "at": "2026-11-04T11:20:30.402Z",
+      "kind": "launch",
+      "from": "dispatcher",
+      "to": "drive@jig-harness/jig#456",
+      "text": "rearm",
+      "record": {
+        "kind": "dispatch-launch-claim",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670004"
+      }
+    },
+    {
+      "at": "2026-11-04T12:58:44.017Z",
+      "kind": "outcome",
+      "from": "drive@jig-harness/jig#456",
+      "to": "dispatcher",
+      "text": "exit 3, usage-limit",
+      "record": {
+        "kind": "dispatch-launch-claim",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670004"
+      }
+    },
+    {
+      "at": "2026-11-04T13:00:12.551Z",
+      "kind": "launch",
+      "from": "dispatcher",
+      "to": "drive@jig-harness/jig#456",
+      "text": "takeover",
+      "record": {
+        "kind": "dispatch-launch-claim",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670005"
+      }
+    },
+    {
+      "at": "2026-11-04T15:44:09Z",
+      "kind": "request",
+      "from": "liqweed",
+      "to": "drive@jig-harness/jig#456",
+      "text": "label jig:hold",
+      "record": {
+        "kind": "label-event",
+        "url": "https://github.com/jig-harness/jig/pull/456"
+      },
+      "until": "2026-11-04T17:02:51Z"
+    },
+    {
+      "at": "2026-11-04T17:06:33.880Z",
+      "kind": "request",
+      "from": "ophir",
+      "to": "drive@jig-harness/jig#456",
+      "text": "resume pause",
+      "record": {
+        "kind": "drive-mailbox",
+        "path": "/home/ophir/orca/workspaces/jig/pr-456/.git/jig/drive-mailbox"
+      },
+      "local": true
+    },
+    {
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "question",
+      "from": "drive@jig-harness/jig#456",
+      "to": "a person",
+      "text": "## Question\nShould `jig ask` read session transcripts in this pull request, or records only?",
+      "record": {
+        "kind": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670006"
+      }
+    },
+    {
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "question",
+      "from": "drive@jig-harness/jig#456",
+      "to": "a person",
+      "text": "## Question\nRename the `launch` table column `stage` to `station`, with a migration?",
+      "record": {
+        "kind": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670006"
+      }
+    },
+    {
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "question",
+      "from": "drive@jig-harness/jig#456",
+      "to": "a person",
+      "text": "## Question\nWhat should a standing role without a key be called: `arbiter@jig` or `arbiter@jig#-`? <!-- not a marker, the record's own words -->",
+      "record": {
+        "kind": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670006"
+      }
+    },
+    {
+      "at": "2026-11-05T09:12:00.000Z",
+      "kind": "outcome",
+      "from": "drive@jig-harness/jig#456",
+      "to": "a person",
+      "text": "stopped exit 8 (HITL_PARKED)",
+      "record": {
+        "kind": "drive-ledger",
+        "url": "https://github.com/jig-harness/jig/pull/456#issuecomment-6670006"
+      }
+    },
+    {
+      "at": "2026-11-05T09:12:02.311Z",
+      "kind": "outcome",
+      "from": "drive@jig-harness/jig#456",
+      "to": "dispatcher",
+      "text": "parked: exit 8 (parked)",
+      "record": {
+        "kind": "dispatch-outcome",
+        "path": "/home/ophir/.local/state/jig/dispatch/state.sqlite"
+      },
+      "local": true
+    }
+  ],
+  "threadOmitted": 3
+}
